@@ -21,7 +21,10 @@ function HomeScreen({ onJoin }) {
       alert('名前を入力してください');
       return;
     }
+<<<<<<< HEAD
     // 5桁の数字を生成 (10000〜99999)
+=======
+>>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
     const newRoomId = Math.floor(10000 + Math.random() * 90000).toString();
     setRoomId(newRoomId);
     onJoin(playerName.trim(), newRoomId);
@@ -47,12 +50,21 @@ function HomeScreen({ onJoin }) {
 
       <h2>ルーム設定</h2>
       <input
+<<<<<<< HEAD
         type="text"
         placeholder="ルームID (例: 12345)"
         value={roomId}
         onChange={(e) => setRoomId(e.target.value)}
         maxLength={5}
       />
+=======
+  type="text"
+  placeholder="ルームID (例: 12345)"
+  value={roomId}
+  onChange={(e) => setRoomId(e.target.value)}
+  maxLength={5}
+/>
+>>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
 
       <button onClick={handleJoin}>ルームに参加</button>
       <button onClick={handleCreateRoom} className="secondary">

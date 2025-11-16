@@ -28,6 +28,7 @@ function App() {
   const [myRole, setMyRole] = useState(null);
   const [myFinalRole, setMyFinalRole] = useState(null);
   const [gamePhase, setGamePhase] = useState('lobby');
+  const [gameResults, setGameResults] = useState(null);
 
   useEffect(() => {
     // Socket.ioイベントリスナー設定
@@ -75,6 +76,7 @@ function App() {
 
     socket.on('gameResults', (data) => {
       console.log('ゲーム結果:', data);
+      setGameResults(data);
       setGamePhase('result');
       setCurrentScreen('result');
     });
@@ -183,7 +185,7 @@ function App() {
       )}
       
       {currentScreen === 'result' && (
-        <ResultScreen onReset={handleResetGame} />
+        <ResultScreen results={gameResults} onReset={handleResetGame} />
       )}
     </div>
   );

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import socket from '../socket';
+import React from 'react';
 
 const roleInfo = {
   werewolf: { name: '人狼' },
@@ -10,20 +9,7 @@ const roleInfo = {
   madman: { name: '狂人' }
 };
 
-function ResultScreen({ onReset }) {
-  const [results, setResults] = useState(null);
-
-  useEffect(() => {
-    socket.on('gameResults', (data) => {
-      console.log('結果受信:', data);
-      setResults(data);
-    });
-
-    return () => {
-      socket.off('gameResults');
-    };
-  }, []);
-
+function ResultScreen({ results, onReset }) {
   if (!results) {
     return (
       <div className="container">
