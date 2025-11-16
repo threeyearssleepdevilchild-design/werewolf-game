@@ -50,7 +50,7 @@ function HomeScreen({ onJoin }) {
         placeholder="ルームID (例: ROOM01)"
         value={roomId}
         onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-        maxLength={10}
+        maxLength={20}
       />
 
       <button onClick={handleJoin}>ルームに参加</button>
