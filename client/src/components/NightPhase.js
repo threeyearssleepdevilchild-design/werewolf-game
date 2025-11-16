@@ -40,12 +40,8 @@ const roleInfo = {
   }
 };
 
-<<<<<<< HEAD
 function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
-=======
-function NightPhase({ playerId, roomId, myRole, onComplete }) {
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
-  const [phase, setPhase] = useState('role'); // role, action, sealed, complete
+  const [phase, setPhase] = useState('role');
   const [isSealed, setIsSealed] = useState(false);
   const [actionData, setActionData] = useState(null);
 
@@ -143,33 +139,21 @@ function NightPhase({ playerId, roomId, myRole, onComplete }) {
     );
   }
 
-  // アクション画面
   return (
     <div className="container">
       <h1>🌙 夜フェーズ</h1>
       <h2>{role.name}の行動</h2>
 
-<<<<<<< HEAD
       {myRole === 'police' && <PoliceAction roomId={roomId} playerId={playerId} roomData={roomData} onComplete={() => setPhase('complete')} />}
       {myRole === 'werewolf' && <WerewolfAction actionData={actionData} onComplete={() => setPhase('complete')} />}
       {myRole === 'detective' && <DetectiveAction roomId={roomId} playerId={playerId} roomData={roomData} actionData={actionData} setActionData={setActionData} onComplete={() => setPhase('complete')} />}
       {myRole === 'thief' && <ThiefAction roomId={roomId} playerId={playerId} roomData={roomData} onComplete={() => setPhase('complete')} />}
-=======
-      {myRole === 'police' && <PoliceAction roomId={roomId} playerId={playerId} onComplete={() => setPhase('complete')} />}
-      {myRole === 'werewolf' && <WerewolfAction actionData={actionData} onComplete={() => setPhase('complete')} />}
-      {myRole === 'detective' && <DetectiveAction roomId={roomId} playerId={playerId} actionData={actionData} setActionData={setActionData} onComplete={() => setPhase('complete')} />}
-      {myRole === 'thief' && <ThiefAction roomId={roomId} playerId={playerId} onComplete={() => setPhase('complete')} />}
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
     </div>
   );
 }
 
-// 警察の行動コンポーネント
-<<<<<<< HEAD
 function PoliceAction({ roomId, playerId, roomData, onComplete }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
-
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const executeAction = () => {
@@ -177,20 +161,6 @@ function PoliceAction({ roomId, playerId, roomData, onComplete }) {
       alert('対象を選択してください');
       return;
     }
-=======
-function PoliceAction({ roomId, playerId, onComplete }) {
-  const [players, setPlayers] = useState([]);
-  const [selectedTarget, setSelectedTarget] = useState(null);
-
-  useEffect(() => {
-    // ルームデータから他のプレイヤーを取得（実際にはsocketから取得）
-    // 簡易実装のため、グローバルステートから取得する必要がある
-    // ここでは仮の実装
-  }, []);
-
-  const executeAction = () => {
-    if (!selectedTarget) return;
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
     socket.emit('policeAction', { roomId, targetId: selectedTarget });
     onComplete();
   };
@@ -201,7 +171,6 @@ function PoliceAction({ roomId, playerId, onComplete }) {
         プレイヤー1人を選んで、その人の能力を封じてください。
       </div>
       
-<<<<<<< HEAD
       <div className="player-list">
         {otherPlayers.map((player) => (
           <div 
@@ -214,9 +183,6 @@ function PoliceAction({ roomId, playerId, onComplete }) {
           </div>
         ))}
       </div>
-=======
-      {/* プレイヤー選択UI - 実際にはpropsで渡す必要あり */}
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
       
       <button onClick={executeAction} disabled={!selectedTarget}>
         能力を封じる
@@ -225,7 +191,6 @@ function PoliceAction({ roomId, playerId, onComplete }) {
   );
 }
 
-// 人狼の行動コンポーネント
 function WerewolfAction({ actionData, onComplete }) {
   if (!actionData) {
     return <div className="info-box">情報を読み込み中...</div>;
@@ -252,13 +217,9 @@ function WerewolfAction({ actionData, onComplete }) {
   );
 }
 
-// 探偵の行動コンポーネント
-<<<<<<< HEAD
 function DetectiveAction({ roomId, playerId, roomData, actionData, setActionData, onComplete }) {
   const [choice, setChoice] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
-
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const checkPlayer = () => {
@@ -267,13 +228,6 @@ function DetectiveAction({ roomId, playerId, roomData, actionData, setActionData
       return;
     }
     socket.emit('detectiveCheckPlayer', { roomId, targetId: selectedTarget });
-=======
-function DetectiveAction({ roomId, playerId, actionData, setActionData, onComplete }) {
-  const [choice, setChoice] = useState(null);
-
-  const checkPlayer = (targetId) => {
-    socket.emit('detectiveCheckPlayer', { roomId, targetId });
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
   };
 
   const checkCenter = () => {
@@ -308,7 +262,6 @@ function DetectiveAction({ roomId, playerId, actionData, setActionData, onComple
         プレイヤー1人を調べるか、中央カード2枚を見るか選んでください。
       </div>
 
-<<<<<<< HEAD
       {!choice && (
         <div className="action-buttons">
           <button onClick={() => setChoice('player')}>プレイヤーを調べる</button>
@@ -337,28 +290,14 @@ function DetectiveAction({ roomId, playerId, actionData, setActionData, onComple
           <button onClick={() => setChoice(null)} className="secondary">
             戻る
           </button>
-=======
-      <div className="action-buttons">
-        <button onClick={() => setChoice('player')}>プレイヤーを調べる</button>
-        <button onClick={checkCenter}>中央カードを見る</button>
-      </div>
-
-      {choice === 'player' && (
-        <div>
-          {/* プレイヤー選択UI */}
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
         </div>
       )}
     </div>
   );
 }
 
-// 怪盗の行動コンポーネント
-<<<<<<< HEAD
 function ThiefAction({ roomId, playerId, roomData, onComplete }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
-
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const executeAction = () => {
@@ -366,13 +305,6 @@ function ThiefAction({ roomId, playerId, roomData, onComplete }) {
       alert('対象を選択してください');
       return;
     }
-=======
-function ThiefAction({ roomId, playerId, onComplete }) {
-  const [selectedTarget, setSelectedTarget] = useState(null);
-
-  const executeAction = () => {
-    if (!selectedTarget) return;
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
     socket.emit('thiefAction', { roomId, playerId, targetId: selectedTarget });
     onComplete();
   };
@@ -388,7 +320,6 @@ function ThiefAction({ roomId, playerId, onComplete }) {
         交換しないことも選べます。
       </div>
 
-<<<<<<< HEAD
       <div className="player-list">
         {otherPlayers.map((player) => (
           <div 
@@ -401,9 +332,6 @@ function ThiefAction({ roomId, playerId, onComplete }) {
           </div>
         ))}
       </div>
-=======
-      {/* プレイヤー選択UI */}
->>>>>>> 334c92db5d1b0685ac8fa5baf8cbf77bfeee21ee
 
       <div className="action-buttons">
         <button onClick={executeAction} disabled={!selectedTarget}>
