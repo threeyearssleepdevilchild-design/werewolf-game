@@ -21,7 +21,7 @@ function HomeScreen({ onJoin }) {
       alert('名前を入力してください');
       return;
     }
-    const newRoomId = `room-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const newRoomId = Math.floor(10000 + Math.random() * 90000).toString();
     setRoomId(newRoomId);
     onJoin(playerName.trim(), newRoomId);
   };
@@ -46,12 +46,12 @@ function HomeScreen({ onJoin }) {
 
       <h2>ルーム設定</h2>
       <input
-        type="text"
-        placeholder="ルームID (例: ROOM01)"
-        value={roomId}
-        onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-        maxLength={20}
-      />
+  type="text"
+  placeholder="ルームID (例: 12345)"
+  value={roomId}
+  onChange={(e) => setRoomId(e.target.value)}
+  maxLength={5}
+/>
 
       <button onClick={handleJoin}>ルームに参加</button>
       <button onClick={handleCreateRoom} className="secondary">
