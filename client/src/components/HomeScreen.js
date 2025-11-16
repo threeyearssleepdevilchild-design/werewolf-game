@@ -29,11 +29,10 @@ function HomeScreen({ onJoin }) {
 
   return (
     <div className="container">
-      <h1>🌙 ワンナイト人狼オリジナル版</h1>
+      <h1>🌙 ワンナイト人狼</h1>
       
       <div className="info-box">
         <strong>🎮 オンライン対戦版</strong><br />
-        友達とリアルタイムで一緒に遊べます!
       </div>
 
       <h2>プレイヤー情報</h2>

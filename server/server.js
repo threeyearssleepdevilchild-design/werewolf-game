@@ -35,7 +35,10 @@ class GameRoom {
       madman: 0
     };
     this.centerCards = [];
-    this.nightActions = {};
+    this.nightActions = new Map(); // プレイヤーIDごとの夜行動
+    this.nightActionsCompleted = new Set(); // 完了したプレイヤーID
+    this.nightResults = new Map(); // プレイヤーIDごとの結果
+    this.sealedPlayerId = null; // 警察が封じたプレイヤーID
     this.votes = {};
   }
 
@@ -101,7 +104,10 @@ class GameRoom {
     this.centerCards = deck.slice(this.players.length);
 
     // 初期化
-    this.nightActions = {};
+    this.nightActions = new Map();
+    this.nightActionsCompleted = new Set();
+    this.nightResults = new Map();
+    this.sealedPlayerId = null;
     this.votes = {};
     this.gameState = 'night';
 
@@ -137,6 +143,168 @@ class GameRoom {
 
   addVote(playerId, targetId) {
     this.votes[playerId] = targetId;
+  }
+
+  // 夜行動を記録
+  recordNightAction(playerId, action) {
+    this.nightActions.set(playerId, action);
+  }
+
+  // プレイヤーが完了したことを記録
+  markPlayerCompleted(playerId) {
+    this.nightActionsCompleted.add(playerId);
+  }
+
+  // 全員が完了したかチェック
+  isAllPlayersCompleted() {
+    return this.players.every(p => this.nightActionsCompleted.has(p.id));
+  }
+
+  // 起床順に従って夜行動を処理
+  processNightActions() {
+    console.log('夜行動の処理を開始...');
+
+    // 0. 警察の処理 - 能力封じ
+    this.players.forEach(player => {
+      if (player.role === 'police') {
+        const action = this.nightActions.get(player.id);
+        if (action && action.type === 'seal' && action.targetId) {
+          this.sealedPlayerId = action.targetId;
+          console.log(`警察が ${action.targetId} を封じました`);
+          
+          // 警察に結果を返す
+          this.nightResults.set(player.id, {
+            type: 'police',
+            sealed: true,
+            targetId: action.targetId
+          });
+        } else {
+          // 封じなかった
+          this.nightResults.set(player.id, {
+            type: 'police',
+            sealed: false
+          });
+        }
+      }
+    });
+
+    // 1. 人狼の処理
+    this.players.forEach(player => {
+      if (player.role === 'werewolf') {
+        // 封じられているかチェック
+        if (player.id === this.sealedPlayerId) {
+          console.log(`人狼 ${player.id} は封じられています`);
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
+          // 封じられていない - 通常処理
+          const werewolves = this.players.filter(p => p.role === 'werewolf');
+          
+          if (werewolves.length > 1) {
+            // 複数人狼 - 仲間を確認
+            const teammates = werewolves
+              .filter(w => w.id !== player.id)
+              .map(w => ({ id: w.id, name: w.name }));
+            
+            this.nightResults.set(player.id, {
+              type: 'werewolf',
+              subtype: 'multiple',
+              werewolves: teammates
+            });
+          } else {
+            // 孤独な人狼 - 中央カード1枚
+            this.nightResults.set(player.id, {
+              type: 'werewolf',
+              subtype: 'alone',
+              centerCard: this.centerCards[0]
+            });
+          }
+        }
+      }
+    });
+
+    // 3. 探偵の処理
+    this.players.forEach(player => {
+      if (player.role === 'detective') {
+        // 封じられているかチェック
+        if (player.id === this.sealedPlayerId) {
+          console.log(`探偵 ${player.id} は封じられています`);
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
+          // 封じられていない - 通常処理
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'checkPlayer' && action.targetId) {
+            // プレイヤーを調査
+            const targetPlayer = this.players.find(p => p.id === action.targetId);
+            if (targetPlayer) {
+              this.nightResults.set(player.id, {
+                type: 'detective',
+                subtype: 'player',
+                playerName: targetPlayer.name,
+                role: targetPlayer.role
+              });
+            }
+          } else if (action && action.type === 'checkCenter') {
+            // 中央カードを調査
+            this.nightResults.set(player.id, {
+              type: 'detective',
+              subtype: 'center',
+              cards: [this.centerCards[0], this.centerCards[1]]
+            });
+          }
+        }
+      }
+    });
+
+    // 5. 怪盗の処理
+    this.players.forEach(player => {
+      if (player.role === 'thief') {
+        // 封じられているかチェック
+        if (player.id === this.sealedPlayerId) {
+          console.log(`怪盗 ${player.id} は封じられています`);
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
+          // 封じられていない - 通常処理
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'swap' && action.targetId) {
+            // カード交換を実行
+            this.swapRoles(player.id, action.targetId);
+            const newRole = this.getPlayerFinalRole(player.id);
+            
+            this.nightResults.set(player.id, {
+              type: 'thief',
+              swapped: true,
+              newRole: newRole
+            });
+          } else {
+            // 交換しなかった
+            this.nightResults.set(player.id, {
+              type: 'thief',
+              swapped: false
+            });
+          }
+        }
+      }
+    });
+
+    // 村人・狂人の処理
+    this.players.forEach(player => {
+      if (player.role === 'villager' || player.role === 'madman') {
+        this.nightResults.set(player.id, {
+          type: 'wait'
+        });
+      }
+    });
+
+    console.log('夜行動の処理が完了しました');
+    return this.nightResults;
   }
 
   calculateResults() {
@@ -274,87 +442,42 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 警察の行動
-  socket.on('policeAction', ({ roomId, targetId }) => {
+  // 夜行動を送信
+  socket.on('submitNightAction', ({ roomId, playerId, action }) => {
     const room = rooms.get(roomId);
     if (room) {
-      room.setNightAction('policeTarget', targetId);
+      console.log(`プレイヤー ${playerId} が夜行動を送信:`, action);
+      room.recordNightAction(playerId, action);
+      room.markPlayerCompleted(playerId);
       
-      // 封じられたプレイヤーに通知
-      const targetPlayer = room.players.find(p => p.id === targetId);
-      if (targetPlayer) {
-        io.to(targetPlayer.socketId).emit('sealed');
-      }
-    }
-  });
-
-  // 人狼情報取得
-  socket.on('getWerewolfInfo', ({ roomId, playerId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      const werewolves = room.players.filter(p => p.role === 'werewolf');
-      const isSealed = room.nightActions.policeTarget === playerId;
-      
-      let info = {};
-      
-      if (!isSealed) {
-        if (werewolves.length > 1) {
-          // 複数の人狼
-          info = {
-            type: 'multiple',
-            werewolves: werewolves
-              .filter(w => w.id !== playerId)
-              .map(w => ({ id: w.id, name: w.name }))
-          };
-        } else {
-          // 孤独な人狼 - 中央カード1枚
-          info = {
-            type: 'alone',
-            centerCard: room.centerCards[0]
-          };
-        }
+      // 全員が完了したかチェック
+      if (room.isAllPlayersCompleted()) {
+        console.log('全員が夜行動を完了しました。処理を開始します。');
+        
+        // 起床順に処理
+        const results = room.processNightActions();
+        
+        // 各プレイヤーに個別の結果を送信
+        room.players.forEach(player => {
+          const result = results.get(player.id);
+          if (result) {
+            io.to(player.socketId).emit('nightResult', result);
+          }
+        });
+        
+        console.log('全員に夜行動の結果を送信しました');
       } else {
-        info = { type: 'sealed' };
+        // まだ全員完了していない
+        const completedCount = room.nightActionsCompleted.size;
+        const totalCount = room.players.length;
+        console.log(`夜行動完了: ${completedCount}/${totalCount}`);
+        
+        // 完了したプレイヤーに待機状態を通知
+        socket.emit('waitingForOthers', {
+          completedCount,
+          totalCount
+        });
       }
-      
-      socket.emit('werewolfInfo', info);
-    }
-  });
-
-  // 探偵の行動（プレイヤー調査）
-  socket.on('detectiveCheckPlayer', ({ roomId, targetId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      const targetRole = room.getPlayerRole(targetId);
-      const targetPlayer = room.players.find(p => p.id === targetId);
-      
-      socket.emit('detectiveResult', {
-        type: 'player',
-        playerName: targetPlayer.name,
-        role: targetRole
-      });
-    }
-  });
-
-  // 探偵の行動（中央カード調査）
-  socket.on('detectiveCheckCenter', ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      socket.emit('detectiveResult', {
-        type: 'center',
-        cards: [room.centerCards[0], room.centerCards[1]]
-      });
-    }
-  });
-
-  // 怪盗の行動
-  socket.on('thiefAction', ({ roomId, playerId, targetId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      room.swapRoles(playerId, targetId);
-      const newRole = room.getPlayerFinalRole(playerId);
-      
-      socket.emit('thiefResult', { newRole });
     }
   });
 
