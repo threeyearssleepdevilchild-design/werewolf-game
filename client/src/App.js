@@ -14,12 +14,13 @@ import ResultScreen from './components/ResultScreen';
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
   const [playerId] = useState(() => {
-    const saved = localStorage.getItem('playerId');
+    // タブごとに一意のIDを生成（sessionStorageを使用）
+    const saved = sessionStorage.getItem('playerId');
     if (saved) return saved;
     const newId = `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('playerId', newId);
+    sessionStorage.setItem('playerId', newId);
     return newId;
-  });
+});
   const [playerName, setPlayerName] = useState('');
   const [roomId, setRoomId] = useState('');
   const [isHost, setIsHost] = useState(false);
