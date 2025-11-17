@@ -29,17 +29,21 @@ function VotingPhase({ playerId, roomId, players }) {
     );
   }
 
+  // 自分以外のプレイヤー（②自分への投票禁止）
+  const otherPlayers = players.filter(p => p.id !== playerId);
+
   return (
     <div className="container">
       <h1>🗳️ 投票フェーズ</h1>
       <h2>処刑したいプレイヤーを選択</h2>
 
       <div className="info-box">
-        処刑したいプレイヤーを1人選んでください
+        処刑したいプレイヤーを1人選んでください<br />
+        ※自分には投票できません
       </div>
 
       <div className="vote-grid">
-        {players.map((player) => (
+        {otherPlayers.map((player) => (
           <button
             key={player.id}
             onClick={() => setSelectedTarget(player.id)}

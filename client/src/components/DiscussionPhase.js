@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import socket from '../socket';
 
 const roleInfo = {
   werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf' },
@@ -9,8 +10,13 @@ const roleInfo = {
   madman: { name: '狂人', team: '人狼陣営', color: 'madman' }
 };
 
-function DiscussionPhase({ myFinalRole, onStartVoting }) {
+function DiscussionPhase({ playerId, roomId, players, myFinalRole }) {
   const role = roleInfo[myFinalRole];
+  const [selectedTarget, setSelectedTarget] = useState(null);
+  const [hasVoted, setHasVoted] = useState(false);
+
+  // 自分以外のプレイヤー（②自分への投票禁止）
+  const otherPlayers = players.filter(p => p.id !== playerId);
 
   const getWinCondition = () => {
     if (myFinalRole === 'werewolf') {
@@ -20,6 +26,16 @@ function DiscussionPhase({ myFinalRole, onStartVoting }) {
     } else {
       return '人狼を1人以上処刑すれば勝利';
     }
+  };
+
+  const handleVote = () => {
+    if (!selectedTarget) {
+      alert('投票先を選んでください');
+      return;
+    }
+
+    socket.emit('vote', { roomId, playerId, targetId: selectedTarget });
+    setHasVoted(true);
   };
 
   return (
@@ -47,7 +63,43 @@ function DiscussionPhase({ myFinalRole, onStartVoting }) {
         ・矛盾を見つけて推理しましょう
       </div>
 
-      <button onClick={onStartVoting}>投票フェーズへ</button>
+      {/* ④議論フェーズで投票 */}
+      <h2>🗳️ 投票</h2>
+
+      {!hasVoted ? (
+        <>
+          <div className="info-box">
+            処刑したいプレイヤーを1人選んでください<br />
+            ※自分には投票できません
+          </div>
+
+          <div className="vote-grid">
+            {otherPlayers.map((player) => (
+              <button
+                key={player.id}
+                onClick={() => setSelectedTarget(player.id)}
+                className={selectedTarget === player.id ? 'selected' : ''}
+                style={{
+                  opacity: selectedTarget === player.id ? 1 : 0.6,
+                  margin: '5px',
+                  padding: '10px 20px'
+                }}
+              >
+                {player.name}
+              </button>
+            ))}
+          </div>
+
+          <button onClick={handleVote} disabled={!selectedTarget}>
+            投票する
+          </button>
+        </>
+      ) : (
+        <div className="success-box">
+          投票が完了しました!<br />
+          全員の投票が終わるまでお待ちください...
+        </div>
+      )}
     </div>
   );
 }

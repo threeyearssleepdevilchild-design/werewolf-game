@@ -312,10 +312,24 @@ class GameRoom {
     const voteCounts = {};
     this.players.forEach(p => voteCounts[p.id] = 0);
     
+    // ③投票詳細を作成
+    const voteDetails = [];
     for (let voterId in this.votes) {
       const targetId = this.votes[voterId];
       if (voteCounts[targetId] !== undefined) {
         voteCounts[targetId]++;
+      }
+      
+      const voter = this.players.find(p => p.id === voterId);
+      const target = this.players.find(p => p.id === targetId);
+      
+      if (voter && target) {
+        voteDetails.push({
+          voterId: voterId,
+          voterName: voter.name,
+          targetId: targetId,
+          targetName: target.name
+        });
       }
     }
 
@@ -355,7 +369,8 @@ class GameRoom {
       executed,
       winners,
       resultType,
-      hasWerewolf
+      hasWerewolf,
+      voteDetails  // ③投票詳細を追加
     };
   }
 
@@ -532,6 +547,28 @@ io.on('connection', (socket) => {
           }))
         });
       }
+    }
+  });
+
+  // ①再試合機能
+  socket.on('rematch', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      console.log(`ルーム ${roomId} で再試合を開始`);
+      
+      // 役職設定はそのまま、ゲームを再スタート
+      room.startGame();
+      
+      // 各プレイヤーに個別に役職を送信
+      room.players.forEach(player => {
+        io.to(player.socketId).emit('gameStarted', {
+          role: player.role,
+          gameState: room.gameState
+        });
+      });
+
+      // 全体の状態更新
+      io.to(roomId).emit('phaseChange', { phase: 'night' });
     }
   });
 

@@ -133,7 +133,23 @@ function App() {
     setMyRole(null);
     setMyFinalRole(null);
     setGamePhase('lobby');
+    setGameResults(null);
     socket.disconnect();
+  };
+
+  // ①再試合機能
+  const handleRematch = () => {
+    socket.emit('rematch', { roomId });
+  };
+
+  // ①役職を調整して再試合 (ロビーに戻る)
+  const handleReturnToLobby = () => {
+    setCurrentScreen('lobby');
+    setMyRole(null);
+    setMyFinalRole(null);
+    setGamePhase('lobby');
+    setGameResults(null);
+    // roomDataと接続は保持
   };
 
   return (
@@ -169,10 +185,12 @@ function App() {
         />
       )}
       
-      {currentScreen === 'discussion' && (
+      {currentScreen === 'discussion' && roomData && (
         <DiscussionPhase
+          playerId={playerId}
+          roomId={roomId}
+          players={roomData.players}
           myFinalRole={myFinalRole}
-          onStartVoting={handleStartVoting}
         />
       )}
       
@@ -185,7 +203,12 @@ function App() {
       )}
       
       {currentScreen === 'result' && (
-        <ResultScreen results={gameResults} onReset={handleResetGame} />
+        <ResultScreen 
+          results={gameResults} 
+          onReset={handleResetGame}
+          onRematch={handleRematch}
+          onReturnToLobby={handleReturnToLobby}
+        />
       )}
     </div>
   );
