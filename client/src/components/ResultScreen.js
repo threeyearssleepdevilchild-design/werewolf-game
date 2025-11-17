@@ -9,7 +9,7 @@ const roleInfo = {
   madman: { name: '狂人' }
 };
 
-function ResultScreen({ results, onReset }) {
+function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
   if (!results) {
     return (
       <div className="container">
@@ -55,6 +55,20 @@ function ResultScreen({ results, onReset }) {
         {resultMessage.detail}
       </div>
 
+      {/* ③投票詳細表示 */}
+      {results.voteDetails && results.voteDetails.length > 0 && (
+        <>
+          <h2>投票詳細</h2>
+          <div className="info-box">
+            {results.voteDetails.map((vote, index) => (
+              <div key={index} style={{ marginBottom: '5px' }}>
+                {vote.voterName} → {vote.targetName}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <h2>結果詳細</h2>
 
       <table className="result-table">
@@ -86,7 +100,41 @@ function ResultScreen({ results, onReset }) {
         </tbody>
       </table>
 
-      <button onClick={onReset}>新しいゲームを始める</button>
+      {/* ①再試合ボタン (3種類) */}
+      <div style={{ marginTop: '20px' }}>
+        <button 
+          onClick={onRematch} 
+          style={{ 
+            marginRight: '10px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            padding: '10px 20px'
+          }}
+        >
+          🔄 同じ設定でもう一度
+        </button>
+        <button 
+          onClick={onReturnToLobby}
+          style={{ 
+            marginRight: '10px',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            padding: '10px 20px'
+          }}
+        >
+          ⚙️ 役職を調整して再試合
+        </button>
+        <button 
+          onClick={onReset}
+          style={{ 
+            backgroundColor: '#f44336',
+            color: 'white',
+            padding: '10px 20px'
+          }}
+        >
+          🏠 ホームに戻る
+        </button>
+      </div>
     </div>
   );
 }
