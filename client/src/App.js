@@ -11,8 +11,42 @@ import DiscussionPhase from './components/DiscussionPhase';
 import VotingPhase from './components/VotingPhase';
 import ResultScreen from './components/ResultScreen';
 
+// LocalStorageのキー
+const STORAGE_KEY = 'werewolf_game_state';
+
+// ゲーム状態を保存
+const saveGameState = (state) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error('状態の保存に失敗:', error);
+  }
+};
+
+// ゲーム状態を読み込み
+const loadGameState = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (error) {
+    console.error('状態の読み込みに失敗:', error);
+    return null;
+  }
+};
+
+// ゲーム状態をクリア
+const clearGameState = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    console.error('状態のクリアに失敗:', error);
+  }
+};
+
 function App() {
-  const [currentScreen, setCurrentScreen] = useState('home');
+  // 保存された状態を読み込み
+  const savedState = loadGameState();
+
   const [playerId] = useState(() => {
     const saved = sessionStorage.getItem('playerId');
     if (saved) return saved;
@@ -20,16 +54,58 @@ function App() {
     sessionStorage.setItem('playerId', newId);
     return newId;
   });
-  const [playerName, setPlayerName] = useState('');
-  const [roomId, setRoomId] = useState('');
-  const [isHost, setIsHost] = useState(false);
+
+  const [currentScreen, setCurrentScreen] = useState(savedState?.currentScreen || 'home');
+  const [playerName, setPlayerName] = useState(savedState?.playerName || '');
+  const [roomId, setRoomId] = useState(savedState?.roomId || '');
+  const [isHost, setIsHost] = useState(savedState?.isHost || false);
   const [roomData, setRoomData] = useState(null);
-  const [myRole, setMyRole] = useState(null);
-  const [myFinalRole, setMyFinalRole] = useState(null);
-  const [gamePhase, setGamePhase] = useState('lobby');
+  const [myRole, setMyRole] = useState(savedState?.myRole || null);
+  const [myFinalRole, setMyFinalRole] = useState(savedState?.myFinalRole || null);
+  const [gamePhase, setGamePhase] = useState(savedState?.gamePhase || 'lobby');
   const [gameResults, setGameResults] = useState(null);
-  const [nightResult, setNightResult] = useState(null); // 夜の結果を保存
-  const [gameRoles, setGameRoles] = useState(null); // ゲームで使用中の役職
+  const [nightResult, setNightResult] = useState(savedState?.nightResult || null);
+  const [gameRoles, setGameRoles] = useState(savedState?.gameRoles || null);
+  const [reconnectMessage, setReconnectMessage] = useState('');
+
+  // 状態が変更されたら保存
+  useEffect(() => {
+    if (roomId && playerName) {
+      saveGameState({
+        currentScreen,
+        playerName,
+        roomId,
+        isHost,
+        myRole,
+        myFinalRole,
+        gamePhase,
+        nightResult,
+        gameRoles
+      });
+    }
+  }, [currentScreen, playerName, roomId, isHost, myRole, myFinalRole, gamePhase, nightResult, gameRoles]);
+
+  // 初回読み込み時に自動再接続を試みる
+  useEffect(() => {
+    if (savedState && savedState.roomId && savedState.playerName && savedState.currentScreen !== 'home') {
+      console.log('保存された状態を検出。再接続を試みます...', savedState);
+      
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      // 接続後に再参加
+      const reconnectTimer = setTimeout(() => {
+        socket.emit('joinRoom', {
+          roomId: savedState.roomId,
+          playerId: playerId,
+          playerName: savedState.playerName
+        });
+      }, 500);
+
+      return () => clearTimeout(reconnectTimer);
+    }
+  }, []); // 初回のみ実行
 
   useEffect(() => {
     socket.on('connect', () => {
@@ -41,6 +117,42 @@ function App() {
       setIsHost(data.isHost);
       setRoomData(data.roomData);
       setCurrentScreen('lobby');
+    });
+
+    // 再接続成功時の処理
+    socket.on('reconnectSuccess', (data) => {
+      console.log('ゲームに再接続しました:', data);
+      setIsHost(data.isHost);
+      setRoomData(data.roomData);
+      setMyRole(data.role);
+      setMyFinalRole(data.finalRole);
+      setGameRoles(data.gameRoles);
+      setNightResult(data.nightResult);
+      
+      // ゲーム状態に応じて画面を設定
+      if (data.gameState === 'night') {
+        setCurrentScreen('night');
+        setGamePhase('night');
+      } else if (data.gameState === 'discussion') {
+        setCurrentScreen('discussion');
+        setGamePhase('discussion');
+      } else if (data.gameState === 'result') {
+        setCurrentScreen('result');
+        setGamePhase('result');
+      } else {
+        setCurrentScreen('lobby');
+        setGamePhase('lobby');
+      }
+
+      setReconnectMessage('ゲームに復帰しました');
+      setTimeout(() => setReconnectMessage(''), 3000);
+    });
+
+    // 他のプレイヤーの再接続通知
+    socket.on('playerReconnected', (data) => {
+      console.log('プレイヤーが再接続:', data);
+      setReconnectMessage(`${data.playerName}さんが再接続しました`);
+      setTimeout(() => setReconnectMessage(''), 3000);
     });
 
     socket.on('roomUpdate', (data) => {
@@ -61,7 +173,7 @@ function App() {
       setMyFinalRole(data.role);
       setGamePhase('night');
       setCurrentScreen('night');
-      setGameRoles(data.roles); // 役職一覧を保存
+      setGameRoles(data.roles);
     });
 
     socket.on('phaseChange', (data) => {
@@ -72,8 +184,8 @@ function App() {
 
     socket.on('discussionStarted', (data) => {
       console.log('議論開始:', data);
-      setMyFinalRole(data.finalRole); // ばかの場合は偽装役職
-      setGameRoles(data.roles); // 役職一覧を更新
+      setMyFinalRole(data.finalRole);
+      setGameRoles(data.roles);
     });
 
     socket.on('gameResults', (data) => {
@@ -83,7 +195,6 @@ function App() {
       setCurrentScreen('result');
     });
 
-    // 夜の結果を受信
     socket.on('nightResult', (result) => {
       console.log('夜の結果を受信:', result);
       setNightResult(result);
@@ -92,6 +203,8 @@ function App() {
     return () => {
       socket.off('connect');
       socket.off('joinSuccess');
+      socket.off('reconnectSuccess');
+      socket.off('playerReconnected');
       socket.off('roomUpdate');
       socket.off('rolesUpdated');
       socket.off('gameStarted');
@@ -139,18 +252,22 @@ function App() {
 
   const handleResetGame = () => {
     setCurrentScreen('home');
+    setPlayerName('');
+    setRoomId('');
+    setIsHost(false);
     setMyRole(null);
     setMyFinalRole(null);
     setGamePhase('lobby');
     setGameResults(null);
     setNightResult(null);
     setGameRoles(null);
+    clearGameState(); // 保存された状態をクリア
     socket.disconnect();
   };
 
   const handleRematch = () => {
     socket.emit('rematch', { roomId });
-    setNightResult(null); // 夜の結果をリセット
+    setNightResult(null);
   };
 
   const handleReturnToLobby = () => {
@@ -165,6 +282,26 @@ function App() {
 
   return (
     <div className="App">
+      {/* 再接続メッセージ */}
+      {reconnectMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#4CAF50',
+          color: 'white',
+          padding: '15px 30px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+          zIndex: 9999,
+          fontSize: '16px',
+          fontWeight: 'bold'
+        }}>
+          {reconnectMessage}
+        </div>
+      )}
+
       {currentScreen === 'home' && (
         <HomeScreen onJoin={handleJoinRoom} />
       )}

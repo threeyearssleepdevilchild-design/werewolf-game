@@ -649,10 +649,20 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     
     const existingPlayer = room.players.find(p => p.id === playerId);
+    const isReconnect = existingPlayer !== undefined;
+    
     if (!existingPlayer) {
       room.addPlayer(playerId, playerName, socket.id);
     } else {
+      // 再接続の場合
       existingPlayer.socketId = socket.id;
+      console.log(`プレイヤー ${playerName} が再接続しました`);
+      
+      // 他のプレイヤーに通知
+      socket.to(roomId).emit('playerReconnected', {
+        playerName: playerName,
+        playerId: playerId
+      });
     }
 
     socket.join(roomId);
@@ -661,11 +671,27 @@ io.on('connection', (socket) => {
 
     io.to(roomId).emit('roomUpdate', room.getRoomData());
     
-    socket.emit('joinSuccess', {
-      playerId: playerId,
-      isHost: room.host === playerId,
-      roomData: room.getRoomData()
-    });
+    // 再接続の場合、現在のゲーム状態を送信
+    if (isReconnect && room.gameState !== 'lobby') {
+      const player = room.players.find(p => p.id === playerId);
+      
+      socket.emit('reconnectSuccess', {
+        playerId: playerId,
+        isHost: room.host === playerId,
+        roomData: room.getRoomData(),
+        gameState: room.gameState,
+        role: player.displayRole,
+        finalRole: player.displayRole,
+        gameRoles: room.roles,
+        nightResult: room.nightResults.get(playerId) || null
+      });
+    } else {
+      socket.emit('joinSuccess', {
+        playerId: playerId,
+        isHost: room.host === playerId,
+        roomData: room.getRoomData()
+      });
+    }
   });
 
   socket.on('updateRoles', ({ roomId, roles }) => {
