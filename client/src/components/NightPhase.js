@@ -2,20 +2,20 @@ import React, { useState, useEffect } from 'react';
 import socket from '../socket';
 
 const roleInfo = {
-  werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf', description: '仲間を確認し、村人を騙す' },
-  villager: { name: '村人', team: '村人陣営', color: 'villager', description: '能力はないが、推理で人狼を見つけ出す' },
+  werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf', description: '仲間を確認' },
+  villager: { name: '村人', team: '村人陣営', color: 'villager', description: '能力なし' },
   fortune_teller: { name: '占い師', team: '村人陣営', color: 'detective', description: 'プレイヤー1人または中央カード2枚を見る' },
-  thief: { name: '怪盗', team: '村人陣営', color: 'thief', description: 'プレイヤー1人とカードを交換できる' },
+  thief: { name: '怪盗', team: '村人陣営', color: 'thief', description: 'プレイヤー1人とカードを交換' },
   police: { name: '警察', team: '村人陣営', color: 'police', description: 'プレイヤー1人の能力を封じる' },
   madman: { name: '狂人', team: '人狼陣営', color: 'madman', description: '人狼陣営だが人狼を知らない' },
-  medium: { name: '審神者', team: '村人陣営', color: 'medium', description: 'プレイヤー1人の陣営を調査する' },
-  fool: { name: 'ばか', team: '村人陣営', color: 'fool', description: 'ランダムな役職を演じ、偽情報を得る' },
-  gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper', description: '中央カード1枚を見て交換できる' },
+  medium: { name: '審神者', team: '村人陣営', color: 'medium', description: 'プレイヤー1人の陣営を調査' },
+  fool: { name: 'ばか', team: '村人陣営', color: 'fool', description: 'ランダムな役職を演じ偽情報を得る' },
+  gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper', description: '中央カード1枚を見て交換可能' },
   witch: { name: '魔女っ子', team: '村人陣営', color: 'witch', description: 'プレイヤー1人の初期役職を調査' },
   hanged: { name: '吊人', team: '第三陣営', color: 'hanged', description: '処刑されたら勝利' }
 };
 
-function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
+function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete }) {
   const [phase, setPhase] = useState('role');
   const [actionResult, setActionResult] = useState(null);
   const [waitingInfo, setWaitingInfo] = useState(null);
@@ -54,11 +54,32 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
     }
   };
 
+  // 役職一覧を生成
+  const getRolesList = () => {
+    if (!gameRoles) return null;
+    
+    const rolesList = [];
+    for (let role in gameRoles) {
+      if (gameRoles[role] > 0) {
+        rolesList.push(`${roleInfo[role].name}×${gameRoles[role]}`);
+      }
+    }
+    return rolesList.join(', ');
+  };
+
   if (phase === 'role') {
     return (
       <div className="container">
         <h1>🌙 夜フェーズ</h1>
         <h2>あなたの役職</h2>
+
+        {/* 役職一覧を表示 */}
+        {gameRoles && (
+          <div className="info-box" style={{ backgroundColor: '#f0f0f0', borderLeft: '4px solid #666' }}>
+            <strong>使用中の役職:</strong><br />
+            {getRolesList()}
+          </div>
+        )}
 
         <div className={`card ${role.color}`}>{role.name}</div>
 
@@ -96,110 +117,22 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
         <h1>🌙 夜フェーズ</h1>
         <h2>夜の結果</h2>
 
+        <div className="info-box">
+          結果を確認しました。<br />
+          まもなく朝になります...
+        </div>
+
         {actionResult && actionResult.type === 'sealed' && (
           <div className="warning-box">
             ⚠️ 警察によってあなたの能力が封じられました
           </div>
         )}
 
-        {actionResult && actionResult.type === 'police' && (
-          <div className="success-box">
-            {actionResult.sealed 
-              ? `${actionResult.targetId} の能力を封じました`
-              : '今夜は能力を封じませんでした'}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'werewolf' && (
+        {actionResult && actionResult.type === 'werewolf' && actionResult.subtype === 'alone' && (
           <div className="info-box">
-            {actionResult.subtype === 'multiple' && (
-              <>
-                <strong>🐺 仲間の人狼:</strong><br />
-                {actionResult.werewolves.map(w => w.name).join(', ')}
-              </>
-            )}
-            {actionResult.subtype === 'alone' && (
-              <>
-                <strong>🃏 中央カード1枚目:</strong><br />
-                {roleInfo[actionResult.centerCard].name}
-              </>
-            )}
+            <strong>🐺 仲間はいませんでした</strong>
           </div>
         )}
-
-        {actionResult && actionResult.type === 'medium' && (
-          <div className="info-box">
-            <strong>{actionResult.playerName}の陣営:</strong><br />
-            {actionResult.team}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'fortune_teller' && (
-          <div className="info-box">
-            {actionResult.subtype === 'player' && (
-              <>
-                <strong>{actionResult.playerName}の役職:</strong><br />
-                {roleInfo[actionResult.role].name}
-              </>
-            )}
-            {actionResult.subtype === 'center' && (
-              <>
-                <strong>🃏 中央カード2枚:</strong><br />
-                1枚目: {roleInfo[actionResult.cards[0]].name}<br />
-                2枚目: {roleInfo[actionResult.cards[1]].name}
-              </>
-            )}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'thief' && (
-          <div className="info-box">
-            {actionResult.swapped ? (
-              <>
-                <strong>カードを交換しました!</strong><br />
-                新しい役職: {roleInfo[actionResult.newRole].name}
-              </>
-            ) : (
-              '今夜は交換しませんでした'
-            )}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'gravekeeper' && (
-          <div className="info-box">
-            {actionResult.viewed ? (
-              <>
-                <strong>中央カードを確認:</strong><br />
-                {roleInfo[actionResult.card].name}<br />
-                {actionResult.swapped && (
-                  <>
-                    <br /><strong>交換しました!</strong><br />
-                    新しい役職: {roleInfo[actionResult.newRole].name}
-                  </>
-                )}
-                {!actionResult.swapped && '交換しませんでした'}
-              </>
-            ) : (
-              '今夜は中央カードを見ませんでした'
-            )}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'witch' && (
-          <div className="info-box">
-            <strong>{actionResult.playerName}の初期役職:</strong><br />
-            {roleInfo[actionResult.role].name}
-          </div>
-        )}
-
-        {actionResult && actionResult.type === 'wait' && (
-          <div className="info-box">
-            あなたの役職には夜の能力がありません。<br />
-            朝まで待機してください。
-          </div>
-        )}
-
-        <button onClick={onComplete}>議論フェーズへ</button>
       </div>
     );
   }
@@ -339,7 +272,7 @@ function MediumAction({ roomId, playerId, roomData }) {
   );
 }
 
-// 占い師の行動コンポーネント (旧・探偵)
+// 占い師の行動コンポーネント
 function FortuneTellerAction({ roomId, playerId, roomData }) {
   const [choice, setChoice] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
@@ -466,14 +399,12 @@ function ThiefAction({ roomId, playerId, roomData }) {
 
 // 墓守の行動コンポーネント
 function GravekeeperAction({ roomId, playerId }) {
-  const [phase, setPhase] = useState('select'); // select, view
+  const [phase, setPhase] = useState('select');
   const [selectedIndex, setSelectedIndex] = useState(null);
-  const [viewedCard, setViewedCard] = useState(null);
 
   const viewCard = (index) => {
     setSelectedIndex(index);
     setPhase('view');
-    // サーバーには送らず、ローカルで表示だけ
   };
 
   const swapCard = () => {

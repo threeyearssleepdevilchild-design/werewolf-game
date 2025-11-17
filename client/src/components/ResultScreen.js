@@ -14,7 +14,7 @@ const roleInfo = {
   hanged: { name: '吊人' }
 };
 
-function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
+function ResultScreen({ results, onReturnToLobby }) {
   if (!results) {
     return (
       <div className="container">
@@ -35,7 +35,13 @@ function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
       return {
         type: 'success',
         message: '🕊️ 平和村!',
-        detail: '人狼はいませんでした。村人陣営の勝利!'
+        detail: '全員が平和村に投票しました。誰も処刑されません!'
+      };
+    } else if (results.resultType === 'peace_executed') {
+      return {
+        type: 'info',
+        message: '🕊️ 平和村 (処刑あり)',
+        detail: '人狼はいませんでした。処刑された人の勝利!'
       };
     } else if (results.resultType === 'villager_win') {
       return {
@@ -66,7 +72,7 @@ function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
         {resultMessage.detail}
       </div>
 
-      {/* ③投票詳細表示 */}
+      {/* 投票詳細表示 */}
       {results.voteDetails && results.voteDetails.length > 0 && (
         <>
           <h2>投票詳細</h2>
@@ -111,39 +117,18 @@ function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
         </tbody>
       </table>
 
-      {/* ①再試合ボタン (3種類) */}
+      {/* ボタンは1つだけ */}
       <div style={{ marginTop: '20px' }}>
-        <button 
-          onClick={onRematch} 
-          style={{ 
-            marginRight: '10px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            padding: '10px 20px'
-          }}
-        >
-          🔄 同じ設定でもう一度
-        </button>
         <button 
           onClick={onReturnToLobby}
           style={{ 
-            marginRight: '10px',
             backgroundColor: '#2196F3',
             color: 'white',
-            padding: '10px 20px'
+            padding: '15px 30px',
+            fontSize: '18px'
           }}
         >
           ⚙️ 役職を調整して再試合
-        </button>
-        <button 
-          onClick={onReset}
-          style={{ 
-            backgroundColor: '#f44336',
-            color: 'white',
-            padding: '10px 20px'
-          }}
-        >
-          🏠 ホームに戻る
         </button>
       </div>
     </div>
