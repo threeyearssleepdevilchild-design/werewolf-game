@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
-    origin: "*", // すべてのオリジンを許可 (スマホ対応)
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -19,27 +19,48 @@ app.use(express.json());
 // ゲームルーム管理
 const rooms = new Map();
 
+// 陣営情報
+const roleTeams = {
+  werewolf: 'werewolf',
+  villager: 'villager',
+  fortune_teller: 'villager', // 占い師（旧・探偵）
+  thief: 'villager',
+  police: 'villager',
+  madman: 'werewolf',
+  medium: 'villager', // 審神者
+  fool: 'villager', // ばか
+  gravekeeper: 'villager', // 墓守
+  witch: 'villager', // 魔女っ子
+  hanged: 'hanged' // 吊人（第三陣営）
+};
+
 // ゲームルームクラス
 class GameRoom {
   constructor(roomId) {
     this.roomId = roomId;
     this.players = [];
     this.host = null;
-    this.gameState = 'lobby'; // lobby, night, discussion, voting, result
+    this.gameState = 'lobby';
     this.roles = {
       werewolf: 2,
       villager: 2,
-      detective: 1,
+      fortune_teller: 1, // 占い師
       thief: 1,
       police: 1,
-      madman: 0
+      madman: 0,
+      medium: 0, // 審神者
+      fool: 0, // ばか
+      gravekeeper: 0, // 墓守
+      witch: 0, // 魔女っ子
+      hanged: 0 // 吊人
     };
     this.centerCards = [];
-    this.nightActions = new Map(); // プレイヤーIDごとの夜行動
-    this.nightActionsCompleted = new Set(); // 完了したプレイヤーID
-    this.nightResults = new Map(); // プレイヤーIDごとの結果
-    this.sealedPlayerId = null; // 警察が封じたプレイヤーID
+    this.nightActions = new Map();
+    this.nightActionsCompleted = new Set();
+    this.nightResults = new Map();
+    this.sealedPlayerId = null;
     this.votes = {};
+    this.foolDisguiseRole = null; // ばかが演じる役職
   }
 
   addPlayer(playerId, playerName, socketId) {
@@ -67,7 +88,6 @@ class GameRoom {
     if (index !== -1) {
       this.players.splice(index, 1);
       
-      // ホストが退出した場合、次の人をホストにする
       if (this.host === playerId && this.players.length > 0) {
         this.host = this.players[0].id;
         this.players[0].isHost = true;
@@ -100,8 +120,15 @@ class GameRoom {
       player.finalRole = deck[index];
     });
 
-    // 中央カード設定
-    this.centerCards = deck.slice(this.players.length);
+    // 中央カード設定（2枚固定）
+    this.centerCards = deck.slice(this.players.length, this.players.length + 2);
+
+    // ばかの演じる役職を決定
+    if (this.players.some(p => p.role === 'fool')) {
+      const villagerRoles = ['fortune_teller', 'thief', 'police', 'gravekeeper', 'witch', 'medium'];
+      this.foolDisguiseRole = villagerRoles[Math.floor(Math.random() * villagerRoles.length)];
+      console.log(`ばかは ${this.foolDisguiseRole} を演じます`);
+    }
 
     // 初期化
     this.nightActions = new Map();
@@ -124,8 +151,16 @@ class GameRoom {
     return player ? player.finalRole : null;
   }
 
-  setNightAction(action, data) {
-    this.nightActions[action] = data;
+  recordNightAction(playerId, action) {
+    this.nightActions.set(playerId, action);
+  }
+
+  markPlayerCompleted(playerId) {
+    this.nightActionsCompleted.add(playerId);
+  }
+
+  isAllPlayersCompleted() {
+    return this.players.every(p => this.nightActionsCompleted.has(p.id));
   }
 
   swapRoles(playerId1, playerId2) {
@@ -141,26 +176,78 @@ class GameRoom {
     return false;
   }
 
-  addVote(playerId, targetId) {
-    this.votes[playerId] = targetId;
+  swapWithCenter(playerId, centerIndex) {
+    const player = this.players.find(p => p.id === playerId);
+    
+    if (player && centerIndex >= 0 && centerIndex < this.centerCards.length) {
+      const temp = player.finalRole;
+      player.finalRole = this.centerCards[centerIndex];
+      this.centerCards[centerIndex] = temp;
+      return true;
+    }
+    return false;
   }
 
-  // 夜行動を記録
-  recordNightAction(playerId, action) {
-    this.nightActions.set(playerId, action);
+  // ばか用の偽情報生成
+  generateFoolInfo(disguiseRole) {
+    const allRoles = ['werewolf', 'villager', 'fortune_teller', 'thief', 'police', 'madman', 'medium', 'fool', 'gravekeeper', 'witch', 'hanged'];
+    
+    if (disguiseRole === 'fortune_teller' || disguiseRole === 'medium' || disguiseRole === 'witch') {
+      // 調査系: ランダムなプレイヤーとランダムな役職
+      const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
+      const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
+      
+      if (disguiseRole === 'fortune_teller') {
+        return {
+          type: 'fortune_teller',
+          subtype: 'player',
+          playerName: randomPlayer.name,
+          role: randomRole
+        };
+      } else if (disguiseRole === 'medium') {
+        const randomTeam = Math.random() < 0.5 ? '村人陣営' : '人狼陣営';
+        return {
+          type: 'medium',
+          playerName: randomPlayer.name,
+          team: randomTeam
+        };
+      } else if (disguiseRole === 'witch') {
+        return {
+          type: 'witch',
+          playerName: randomPlayer.name,
+          role: randomRole
+        };
+      }
+    } else if (disguiseRole === 'thief') {
+      // 怪盗: 交換したフリ
+      const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
+      return {
+        type: 'thief',
+        swapped: true,
+        newRole: randomRole
+      };
+    } else if (disguiseRole === 'police') {
+      // 警察: 封じたフリ
+      const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
+      return {
+        type: 'police',
+        sealed: true,
+        targetId: randomPlayer.id
+      };
+    } else if (disguiseRole === 'gravekeeper') {
+      // 墓守: 中央カードを見たフリ
+      const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
+      return {
+        type: 'gravekeeper',
+        viewed: true,
+        card: randomRole,
+        swapped: false
+      };
+    }
+    
+    return { type: 'wait' };
   }
 
-  // プレイヤーが完了したことを記録
-  markPlayerCompleted(playerId) {
-    this.nightActionsCompleted.add(playerId);
-  }
-
-  // 全員が完了したかチェック
-  isAllPlayersCompleted() {
-    return this.players.every(p => this.nightActionsCompleted.has(p.id));
-  }
-
-  // 起床順に従って夜行動を処理
   processNightActions() {
     console.log('夜行動の処理を開始...');
 
@@ -172,14 +259,12 @@ class GameRoom {
           this.sealedPlayerId = action.targetId;
           console.log(`警察が ${action.targetId} を封じました`);
           
-          // 警察に結果を返す
           this.nightResults.set(player.id, {
             type: 'police',
             sealed: true,
             targetId: action.targetId
           });
         } else {
-          // 封じなかった
           this.nightResults.set(player.id, {
             type: 'police',
             sealed: false
@@ -191,18 +276,14 @@ class GameRoom {
     // 1. 人狼の処理
     this.players.forEach(player => {
       if (player.role === 'werewolf') {
-        // 封じられているかチェック
         if (player.id === this.sealedPlayerId) {
-          console.log(`人狼 ${player.id} は封じられています`);
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
         } else {
-          // 封じられていない - 通常処理
           const werewolves = this.players.filter(p => p.role === 'werewolf');
           
           if (werewolves.length > 1) {
-            // 複数人狼 - 仲間を確認
             const teammates = werewolves
               .filter(w => w.id !== player.id)
               .map(w => ({ id: w.id, name: w.name }));
@@ -213,7 +294,6 @@ class GameRoom {
               werewolves: teammates
             });
           } else {
-            // 孤独な人狼 - 中央カード1枚
             this.nightResults.set(player.id, {
               type: 'werewolf',
               subtype: 'alone',
@@ -224,34 +304,58 @@ class GameRoom {
       }
     });
 
-    // 3. 探偵の処理
+    // 2. 審神者の処理
     this.players.forEach(player => {
-      if (player.role === 'detective') {
-        // 封じられているかチェック
+      if (player.role === 'medium') {
         if (player.id === this.sealedPlayerId) {
-          console.log(`探偵 ${player.id} は封じられています`);
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
         } else {
-          // 封じられていない - 通常処理
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'checkTeam' && action.targetId) {
+            const targetPlayer = this.players.find(p => p.id === action.targetId);
+            if (targetPlayer) {
+              const team = roleTeams[targetPlayer.role];
+              let teamName = '村人陣営';
+              if (team === 'werewolf') teamName = '人狼陣営';
+              if (team === 'hanged') teamName = '第三陣営';
+              
+              this.nightResults.set(player.id, {
+                type: 'medium',
+                playerName: targetPlayer.name,
+                team: teamName
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // 3. 占い師（旧・探偵）の処理
+    this.players.forEach(player => {
+      if (player.role === 'fortune_teller') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
           const action = this.nightActions.get(player.id);
           
           if (action && action.type === 'checkPlayer' && action.targetId) {
-            // プレイヤーを調査
             const targetPlayer = this.players.find(p => p.id === action.targetId);
             if (targetPlayer) {
               this.nightResults.set(player.id, {
-                type: 'detective',
+                type: 'fortune_teller',
                 subtype: 'player',
                 playerName: targetPlayer.name,
                 role: targetPlayer.role
               });
             }
           } else if (action && action.type === 'checkCenter') {
-            // 中央カードを調査
             this.nightResults.set(player.id, {
-              type: 'detective',
+              type: 'fortune_teller',
               subtype: 'center',
               cards: [this.centerCards[0], this.centerCards[1]]
             });
@@ -260,21 +364,32 @@ class GameRoom {
       }
     });
 
-    // 5. 怪盗の処理
+    // 4. ばかの処理
     this.players.forEach(player => {
-      if (player.role === 'thief') {
-        // 封じられているかチェック
+      if (player.role === 'fool') {
         if (player.id === this.sealedPlayerId) {
-          console.log(`怪盗 ${player.id} は封じられています`);
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
         } else {
-          // 封じられていない - 通常処理
+          // 偽情報を生成
+          const foolInfo = this.generateFoolInfo(this.foolDisguiseRole);
+          this.nightResults.set(player.id, foolInfo);
+        }
+      }
+    });
+
+    // 5. 怪盗の処理
+    this.players.forEach(player => {
+      if (player.role === 'thief') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
           const action = this.nightActions.get(player.id);
           
           if (action && action.type === 'swap' && action.targetId) {
-            // カード交換を実行
             this.swapRoles(player.id, action.targetId);
             const newRole = this.getPlayerFinalRole(player.id);
             
@@ -284,7 +399,6 @@ class GameRoom {
               newRole: newRole
             });
           } else {
-            // 交換しなかった
             this.nightResults.set(player.id, {
               type: 'thief',
               swapped: false
@@ -294,9 +408,75 @@ class GameRoom {
       }
     });
 
-    // 村人・狂人の処理
+    // 6. 墓守の処理
     this.players.forEach(player => {
-      if (player.role === 'villager' || player.role === 'madman') {
+      if (player.role === 'gravekeeper') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'viewCenter' && action.centerIndex !== undefined) {
+            const card = this.centerCards[action.centerIndex];
+            
+            if (action.shouldSwap) {
+              this.swapWithCenter(player.id, action.centerIndex);
+              const newRole = this.getPlayerFinalRole(player.id);
+              
+              this.nightResults.set(player.id, {
+                type: 'gravekeeper',
+                viewed: true,
+                card: card,
+                swapped: true,
+                newRole: newRole
+              });
+            } else {
+              this.nightResults.set(player.id, {
+                type: 'gravekeeper',
+                viewed: true,
+                card: card,
+                swapped: false
+              });
+            }
+          } else {
+            this.nightResults.set(player.id, {
+              type: 'gravekeeper',
+              viewed: false
+            });
+          }
+        }
+      }
+    });
+
+    // 7. 魔女っ子の処理
+    this.players.forEach(player => {
+      if (player.role === 'witch') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+        } else {
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'checkOriginal' && action.targetId) {
+            const targetPlayer = this.players.find(p => p.id === action.targetId);
+            if (targetPlayer) {
+              this.nightResults.set(player.id, {
+                type: 'witch',
+                playerName: targetPlayer.name,
+                role: targetPlayer.role
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // 能力なし役職の処理
+    this.players.forEach(player => {
+      if (player.role === 'villager' || player.role === 'madman' || player.role === 'hanged') {
         this.nightResults.set(player.id, {
           type: 'wait'
         });
@@ -307,12 +487,16 @@ class GameRoom {
     return this.nightResults;
   }
 
+  addVote(playerId, targetId) {
+    this.votes[playerId] = targetId;
+  }
+
   calculateResults() {
     // 得票数カウント
     const voteCounts = {};
     this.players.forEach(p => voteCounts[p.id] = 0);
     
-    // ③投票詳細を作成
+    // 投票詳細を作成
     const voteDetails = [];
     for (let voterId in this.votes) {
       const targetId = this.votes[voterId];
@@ -339,7 +523,22 @@ class GameRoom {
       voteCounts[p.id] === maxVotes && maxVotes > 0
     );
 
-    // 勝利判定
+    // 吊人判定
+    const hangedExecuted = executed.some(p => p.finalRole === 'hanged');
+    if (hangedExecuted) {
+      // 吊人が処刑された → 吊人の単独勝利
+      const hangedWinner = executed.find(p => p.finalRole === 'hanged');
+      return {
+        voteCounts,
+        executed,
+        winners: [hangedWinner],
+        resultType: 'hanged_win',
+        hasWerewolf: this.players.some(p => p.finalRole === 'werewolf'),
+        voteDetails
+      };
+    }
+
+    // 通常の勝利判定
     const werewolvesExecuted = executed.filter(p => p.finalRole === 'werewolf').length;
     const hasWerewolf = this.players.some(p => p.finalRole === 'werewolf');
 
@@ -349,18 +548,18 @@ class GameRoom {
     if (!hasWerewolf && executed.length === 0) {
       // 平和村
       resultType = 'peace';
-      winners = this.players.filter(p => p.finalRole !== 'madman');
+      winners = this.players.filter(p => p.finalRole !== 'madman' && p.finalRole !== 'hanged');
     } else if (werewolvesExecuted > 0) {
       // 村人陣営勝利
       resultType = 'villager_win';
       winners = this.players.filter(p => 
-        p.finalRole !== 'werewolf' && p.finalRole !== 'madman'
+        roleTeams[p.finalRole] === 'villager'
       );
     } else if (hasWerewolf) {
       // 人狼陣営勝利
       resultType = 'werewolf_win';
       winners = this.players.filter(p => 
-        p.finalRole === 'werewolf' || p.finalRole === 'madman'
+        roleTeams[p.finalRole] === 'werewolf'
       );
     }
 
@@ -370,7 +569,7 @@ class GameRoom {
       winners,
       resultType,
       hasWerewolf,
-      voteDetails  // ③投票詳細を追加
+      voteDetails
     };
   }
 
@@ -394,23 +593,19 @@ class GameRoom {
 io.on('connection', (socket) => {
   console.log('新しいクライアント接続:', socket.id);
 
-  // ルーム作成または参加
   socket.on('joinRoom', ({ roomId, playerId, playerName }) => {
     console.log(`プレイヤー ${playerName} がルーム ${roomId} に参加`);
 
-    // ルームが存在しない場合は作成
     if (!rooms.has(roomId)) {
       rooms.set(roomId, new GameRoom(roomId));
     }
 
     const room = rooms.get(roomId);
     
-    // すでに参加しているか確認
     const existingPlayer = room.players.find(p => p.id === playerId);
     if (!existingPlayer) {
       room.addPlayer(playerId, playerName, socket.id);
     } else {
-      // Socket IDを更新（再接続の場合）
       existingPlayer.socketId = socket.id;
     }
 
@@ -418,10 +613,8 @@ io.on('connection', (socket) => {
     socket.data.roomId = roomId;
     socket.data.playerId = playerId;
 
-    // ルーム情報を全員に送信
     io.to(roomId).emit('roomUpdate', room.getRoomData());
     
-    // 参加成功を送信者に通知
     socket.emit('joinSuccess', {
       playerId: playerId,
       isHost: room.host === playerId,
@@ -429,7 +622,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 役職設定更新
   socket.on('updateRoles', ({ roomId, roles }) => {
     const room = rooms.get(roomId);
     if (room) {
@@ -438,26 +630,28 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ゲーム開始
   socket.on('startGame', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room && room.host === socket.data.playerId) {
       room.startGame();
       
-      // 各プレイヤーに個別に役職を送信
       room.players.forEach(player => {
+        // ばかには演じる役職を送信
+        let displayRole = player.role;
+        if (player.role === 'fool' && room.foolDisguiseRole) {
+          displayRole = room.foolDisguiseRole;
+        }
+        
         io.to(player.socketId).emit('gameStarted', {
-          role: player.role,
+          role: displayRole,
           gameState: room.gameState
         });
       });
 
-      // 全体の状態更新
       io.to(roomId).emit('phaseChange', { phase: 'night' });
     }
   });
 
-  // 夜行動を送信
   socket.on('submitNightAction', ({ roomId, playerId, action }) => {
     const room = rooms.get(roomId);
     if (room) {
@@ -465,14 +659,11 @@ io.on('connection', (socket) => {
       room.recordNightAction(playerId, action);
       room.markPlayerCompleted(playerId);
       
-      // 全員が完了したかチェック
       if (room.isAllPlayersCompleted()) {
         console.log('全員が夜行動を完了しました。処理を開始します。');
         
-        // 起床順に処理
         const results = room.processNightActions();
         
-        // 各プレイヤーに個別の結果を送信
         room.players.forEach(player => {
           const result = results.get(player.id);
           if (result) {
@@ -482,12 +673,10 @@ io.on('connection', (socket) => {
         
         console.log('全員に夜行動の結果を送信しました');
       } else {
-        // まだ全員完了していない
         const completedCount = room.nightActionsCompleted.size;
         const totalCount = room.players.length;
         console.log(`夜行動完了: ${completedCount}/${totalCount}`);
         
-        // 完了したプレイヤーに待機状態を通知
         socket.emit('waitingForOthers', {
           completedCount,
           totalCount
@@ -496,13 +685,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 議論フェーズへ移行
   socket.on('startDiscussion', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room) {
       room.gameState = 'discussion';
       
-      // 各プレイヤーに最終役職を送信
       room.players.forEach(player => {
         io.to(player.socketId).emit('discussionStarted', {
           finalRole: player.finalRole
@@ -513,30 +700,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 投票フェーズへ移行
-  socket.on('startVoting', ({ roomId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      room.gameState = 'voting';
-      io.to(roomId).emit('phaseChange', { phase: 'voting' });
-    }
-  });
-
-  // 投票
   socket.on('vote', ({ roomId, playerId, targetId }) => {
     const room = rooms.get(roomId);
     if (room) {
       room.addVote(playerId, targetId);
       
-      // 全員が投票したかチェック
       const allVoted = room.players.every(p => room.votes[p.id] !== undefined);
       
       if (allVoted) {
-        // 結果計算
         const results = room.calculateResults();
         room.gameState = 'result';
         
-        // 結果を全員に送信
         io.to(roomId).emit('gameResults', {
           ...results,
           players: room.players.map(p => ({
@@ -550,52 +724,35 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ①再試合機能
   socket.on('rematch', ({ roomId }) => {
     const room = rooms.get(roomId);
     if (room) {
       console.log(`ルーム ${roomId} で再試合を開始`);
       
-      // 役職設定はそのまま、ゲームを再スタート
       room.startGame();
       
-      // 各プレイヤーに個別に役職を送信
       room.players.forEach(player => {
+        let displayRole = player.role;
+        if (player.role === 'fool' && room.foolDisguiseRole) {
+          displayRole = room.foolDisguiseRole;
+        }
+        
         io.to(player.socketId).emit('gameStarted', {
-          role: player.role,
+          role: displayRole,
           gameState: room.gameState
         });
       });
 
-      // 全体の状態更新
       io.to(roomId).emit('phaseChange', { phase: 'night' });
     }
   });
 
-  // プレイヤー退出
   socket.on('disconnect', () => {
     console.log('クライアント切断:', socket.id);
-    
-    const roomId = socket.data.roomId;
-    const playerId = socket.data.playerId;
-    
-    if (roomId && rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      // 必要に応じてプレイヤーを削除（または再接続待ち状態にする）
-      // room.removePlayer(playerId);
-      
-      // ルームが空になったら削除
-      if (room.players.length === 0) {
-        rooms.delete(roomId);
-      } else {
-        io.to(roomId).emit('roomUpdate', room.getRoomData());
-      }
-    }
   });
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🎮 ワンナイト人狼サーバー起動: http://localhost:${PORT}`);
-  console.log(`📱 スマホからアクセス: http://あなたのIPアドレス:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`サーバーがポート${PORT}で起動しました`);
 });

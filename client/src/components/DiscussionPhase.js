@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import socket from '../socket';
 
 const roleInfo = {
   werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf' },
   villager: { name: '村人', team: '村人陣営', color: 'villager' },
-  detective: { name: '探偵', team: '村人陣営', color: 'detective' },
+  fortune_teller: { name: '占い師', team: '村人陣営', color: 'detective' },
   thief: { name: '怪盗', team: '村人陣営', color: 'thief' },
   police: { name: '警察', team: '村人陣営', color: 'police' },
-  madman: { name: '狂人', team: '人狼陣営', color: 'madman' }
+  madman: { name: '狂人', team: '人狼陣営', color: 'madman' },
+  medium: { name: '審神者', team: '村人陣営', color: 'medium' },
+  fool: { name: 'ばか', team: '村人陣営', color: 'fool' },
+  gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper' },
+  witch: { name: '魔女っ子', team: '村人陣営', color: 'witch' },
+  hanged: { name: '吊人', team: '第三陣営', color: 'hanged' }
 };
 
 function DiscussionPhase({ playerId, roomId, players, myFinalRole }) {
@@ -15,7 +20,6 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
 
-  // 自分以外のプレイヤー（②自分への投票禁止）
   const otherPlayers = players.filter(p => p.id !== playerId);
 
   const getWinCondition = () => {
@@ -23,6 +27,8 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole }) {
       return '人狼が1人も処刑されなければ勝利';
     } else if (myFinalRole === 'madman') {
       return '人狼陣営(狂人除く)が処刑されなければ勝利\n※平和村の場合は村人陣営として勝利';
+    } else if (myFinalRole === 'hanged') {
+      return '自分が処刑されたら単独勝利';
     } else {
       return '人狼を1人以上処刑すれば勝利';
     }

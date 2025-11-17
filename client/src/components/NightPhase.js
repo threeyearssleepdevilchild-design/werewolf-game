@@ -2,60 +2,33 @@ import React, { useState, useEffect } from 'react';
 import socket from '../socket';
 
 const roleInfo = {
-  werewolf: {
-    name: '人狼',
-    team: '人狼陣営',
-    description: '人狼同士で互いを認識できます。1人だけの場合は中央カード1枚を見られます。',
-    color: 'werewolf'
-  },
-  villager: {
-    name: '村人',
-    team: '村人陣営',
-    description: '特殊能力はありません。議論で人狼を見つけましょう。',
-    color: 'villager'
-  },
-  detective: {
-    name: '探偵',
-    team: '村人陣営',
-    description: 'プレイヤー1人を調べるか、中央カード2枚を見ることができます。',
-    color: 'detective'
-  },
-  thief: {
-    name: '怪盗',
-    team: '村人陣営',
-    description: 'プレイヤー1人とカードを交換できます。新しい役職を確認できます。',
-    color: 'thief'
-  },
-  police: {
-    name: '警察',
-    team: '村人陣営',
-    description: 'プレイヤー1人の能力を封じることができます。',
-    color: 'police'
-  },
-  madman: {
-    name: '狂人',
-    team: '人狼陣営',
-    description: '人狼陣営ですが、誰が人狼か分かりません。人狼が処刑されないよう行動しましょう。',
-    color: 'madman'
-  }
+  werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf', description: '仲間を確認し、村人を騙す' },
+  villager: { name: '村人', team: '村人陣営', color: 'villager', description: '能力はないが、推理で人狼を見つけ出す' },
+  fortune_teller: { name: '占い師', team: '村人陣営', color: 'detective', description: 'プレイヤー1人または中央カード2枚を見る' },
+  thief: { name: '怪盗', team: '村人陣営', color: 'thief', description: 'プレイヤー1人とカードを交換できる' },
+  police: { name: '警察', team: '村人陣営', color: 'police', description: 'プレイヤー1人の能力を封じる' },
+  madman: { name: '狂人', team: '人狼陣営', color: 'madman', description: '人狼陣営だが人狼を知らない' },
+  medium: { name: '審神者', team: '村人陣営', color: 'medium', description: 'プレイヤー1人の陣営を調査する' },
+  fool: { name: 'ばか', team: '村人陣営', color: 'fool', description: 'ランダムな役職を演じ、偽情報を得る' },
+  gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper', description: '中央カード1枚を見て交換できる' },
+  witch: { name: '魔女っ子', team: '村人陣営', color: 'witch', description: 'プレイヤー1人の初期役職を調査' },
+  hanged: { name: '吊人', team: '第三陣営', color: 'hanged', description: '処刑されたら勝利' }
 };
 
 function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
-  const [phase, setPhase] = useState('role'); // role, action, waiting, result
+  const [phase, setPhase] = useState('role');
   const [actionResult, setActionResult] = useState(null);
   const [waitingInfo, setWaitingInfo] = useState(null);
 
   const role = roleInfo[myRole];
 
   useEffect(() => {
-    // 夜行動の結果を受信
     socket.on('nightResult', (result) => {
       console.log('夜行動の結果を受信:', result);
       setActionResult(result);
       setPhase('result');
     });
 
-    // 他のプレイヤー待ち
     socket.on('waitingForOthers', (info) => {
       console.log('他のプレイヤーを待機中:', info);
       setWaitingInfo(info);
@@ -69,8 +42,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
   }, []);
 
   const startAction = () => {
-    if (myRole === 'villager' || myRole === 'madman') {
-      // 能力なし - すぐに完了
+    if (myRole === 'villager' || myRole === 'madman' || myRole === 'hanged') {
       socket.emit('submitNightAction', {
         roomId,
         playerId,
@@ -82,7 +54,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
     }
   };
 
-  // 役職カード表示画面
   if (phase === 'role') {
     return (
       <div className="container">
@@ -101,23 +72,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
     );
   }
 
-  if (phase === 'sealed') {
-    return (
-      <div className="container">
-        <h1>🌙 夜フェーズ</h1>
-        <h2>能力封じられました</h2>
-
-        <div className="warning-box">
-          ⚠️ 警察によってあなたの能力が封じられました<br />
-          今夜は何もできません
-        </div>
-
-        <button onClick={onComplete}>確認</button>
-      </div>
-    );
-  }
-
-  // 待機画面
   if (phase === 'waiting') {
     return (
       <div className="container">
@@ -136,7 +90,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
     );
   }
 
-  // 結果画面
   if (phase === 'result') {
     return (
       <div className="container">
@@ -152,7 +105,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
         {actionResult && actionResult.type === 'police' && (
           <div className="success-box">
             {actionResult.sealed 
-              ? '能力を封じました'
+              ? `${actionResult.targetId} の能力を封じました`
               : '今夜は能力を封じませんでした'}
           </div>
         )}
@@ -174,7 +127,14 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
           </div>
         )}
 
-        {actionResult && actionResult.type === 'detective' && (
+        {actionResult && actionResult.type === 'medium' && (
+          <div className="info-box">
+            <strong>{actionResult.playerName}の陣営:</strong><br />
+            {actionResult.team}
+          </div>
+        )}
+
+        {actionResult && actionResult.type === 'fortune_teller' && (
           <div className="info-box">
             {actionResult.subtype === 'player' && (
               <>
@@ -205,6 +165,33 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
           </div>
         )}
 
+        {actionResult && actionResult.type === 'gravekeeper' && (
+          <div className="info-box">
+            {actionResult.viewed ? (
+              <>
+                <strong>中央カードを確認:</strong><br />
+                {roleInfo[actionResult.card].name}<br />
+                {actionResult.swapped && (
+                  <>
+                    <br /><strong>交換しました!</strong><br />
+                    新しい役職: {roleInfo[actionResult.newRole].name}
+                  </>
+                )}
+                {!actionResult.swapped && '交換しませんでした'}
+              </>
+            ) : (
+              '今夜は中央カードを見ませんでした'
+            )}
+          </div>
+        )}
+
+        {actionResult && actionResult.type === 'witch' && (
+          <div className="info-box">
+            <strong>{actionResult.playerName}の初期役職:</strong><br />
+            {roleInfo[actionResult.role].name}
+          </div>
+        )}
+
         {actionResult && actionResult.type === 'wait' && (
           <div className="info-box">
             あなたの役職には夜の能力がありません。<br />
@@ -217,7 +204,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
     );
   }
 
-  // アクション画面
   return (
     <div className="container">
       <h1>🌙 夜フェーズ</h1>
@@ -225,8 +211,11 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
 
       {myRole === 'police' && <PoliceAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'werewolf' && <WerewolfAction roomId={roomId} playerId={playerId} />}
-      {myRole === 'detective' && <DetectiveAction roomId={roomId} playerId={playerId} roomData={roomData} />}
+      {myRole === 'medium' && <MediumAction roomId={roomId} playerId={playerId} roomData={roomData} />}
+      {myRole === 'fortune_teller' && <FortuneTellerAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'thief' && <ThiefAction roomId={roomId} playerId={playerId} roomData={roomData} />}
+      {myRole === 'gravekeeper' && <GravekeeperAction roomId={roomId} playerId={playerId} />}
+      {myRole === 'witch' && <WitchAction roomId={roomId} playerId={playerId} roomData={roomData} />}
     </div>
   );
 }
@@ -235,7 +224,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, onComplete }) {
 function PoliceAction({ roomId, playerId, roomData }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
 
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const executeAction = () => {
@@ -243,7 +231,6 @@ function PoliceAction({ roomId, playerId, roomData }) {
       alert('対象を選択してください');
       return;
     }
-    // 新しい方式: submitNightAction で送信
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -252,7 +239,6 @@ function PoliceAction({ roomId, playerId, roomData }) {
   };
 
   const skipAction = () => {
-    // 封じない
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -292,7 +278,6 @@ function PoliceAction({ roomId, playerId, roomData }) {
 // 人狼の行動コンポーネント
 function WerewolfAction({ roomId, playerId }) {
   const handleComplete = () => {
-    // 人狼は自動で処理されるので、完了を送信するだけ
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -310,12 +295,55 @@ function WerewolfAction({ roomId, playerId }) {
   );
 }
 
-// 探偵の行動コンポーネント
-function DetectiveAction({ roomId, playerId, roomData }) {
+// 審神者の行動コンポーネント
+function MediumAction({ roomId, playerId, roomData }) {
+  const [selectedTarget, setSelectedTarget] = useState(null);
+
+  const otherPlayers = roomData.players.filter(p => p.id !== playerId);
+
+  const executeAction = () => {
+    if (!selectedTarget) {
+      alert('対象を選択してください');
+      return;
+    }
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'checkTeam', targetId: selectedTarget }
+    });
+  };
+
+  return (
+    <div>
+      <div className="info-box">
+        プレイヤー1人を選んで、その人の陣営を調査してください。
+      </div>
+      
+      <div className="player-list">
+        {otherPlayers.map((player) => (
+          <div 
+            key={player.id} 
+            className={`player-item ${selectedTarget === player.id ? 'selected' : ''}`}
+            onClick={() => setSelectedTarget(player.id)}
+            style={{ cursor: 'pointer', padding: '10px', margin: '5px', border: selectedTarget === player.id ? '2px solid blue' : '1px solid gray' }}
+          >
+            {player.name}
+          </div>
+        ))}
+      </div>
+      
+      <button onClick={executeAction} disabled={!selectedTarget}>
+        陣営を調査
+      </button>
+    </div>
+  );
+}
+
+// 占い師の行動コンポーネント (旧・探偵)
+function FortuneTellerAction({ roomId, playerId, roomData }) {
   const [choice, setChoice] = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
 
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const checkPlayer = () => {
@@ -323,7 +351,6 @@ function DetectiveAction({ roomId, playerId, roomData }) {
       alert('対象を選択してください');
       return;
     }
-    // 新しい方式: submitNightAction で送信
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -332,7 +359,6 @@ function DetectiveAction({ roomId, playerId, roomData }) {
   };
 
   const checkCenter = () => {
-    // 新しい方式: submitNightAction で送信
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -384,7 +410,6 @@ function DetectiveAction({ roomId, playerId, roomData }) {
 function ThiefAction({ roomId, playerId, roomData }) {
   const [selectedTarget, setSelectedTarget] = useState(null);
 
-  // 自分以外のプレイヤーを取得
   const otherPlayers = roomData.players.filter(p => p.id !== playerId);
 
   const executeAction = () => {
@@ -392,7 +417,6 @@ function ThiefAction({ roomId, playerId, roomData }) {
       alert('対象を選択してください');
       return;
     }
-    // 新しい方式: submitNightAction で送信
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -401,7 +425,6 @@ function ThiefAction({ roomId, playerId, roomData }) {
   };
 
   const skipAction = () => {
-    // 交換しない
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -437,6 +460,132 @@ function ThiefAction({ roomId, playerId, roomData }) {
           交換しない
         </button>
       </div>
+    </div>
+  );
+}
+
+// 墓守の行動コンポーネント
+function GravekeeperAction({ roomId, playerId }) {
+  const [phase, setPhase] = useState('select'); // select, view
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [viewedCard, setViewedCard] = useState(null);
+
+  const viewCard = (index) => {
+    setSelectedIndex(index);
+    setPhase('view');
+    // サーバーには送らず、ローカルで表示だけ
+  };
+
+  const swapCard = () => {
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'viewCenter', centerIndex: selectedIndex, shouldSwap: true }
+    });
+  };
+
+  const skipSwap = () => {
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'viewCenter', centerIndex: selectedIndex, shouldSwap: false }
+    });
+  };
+
+  const skipAll = () => {
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'viewCenter' }
+    });
+  };
+
+  if (phase === 'select') {
+    return (
+      <div>
+        <div className="info-box">
+          中央カードを1枚選んで確認できます。<br />
+          確認後、自分と交換するか選べます。
+        </div>
+
+        <div className="center-cards">
+          <button onClick={() => viewCard(0)} style={{ margin: '10px', padding: '20px' }}>
+            中央カード1枚目
+          </button>
+          <button onClick={() => viewCard(1)} style={{ margin: '10px', padding: '20px' }}>
+            中央カード2枚目
+          </button>
+        </div>
+
+        <button onClick={skipAll} className="secondary">
+          見ない
+        </button>
+      </div>
+    );
+  }
+
+  if (phase === 'view') {
+    return (
+      <div>
+        <div className="info-box">
+          中央カード{selectedIndex + 1}枚目を確認しました。<br />
+          自分と交換しますか?
+        </div>
+
+        <div className="action-buttons">
+          <button onClick={swapCard}>
+            交換する
+          </button>
+          <button onClick={skipSwap} className="secondary">
+            交換しない
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
+// 魔女っ子の行動コンポーネント
+function WitchAction({ roomId, playerId, roomData }) {
+  const [selectedTarget, setSelectedTarget] = useState(null);
+
+  const otherPlayers = roomData.players.filter(p => p.id !== playerId);
+
+  const executeAction = () => {
+    if (!selectedTarget) {
+      alert('対象を選択してください');
+      return;
+    }
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'checkOriginal', targetId: selectedTarget }
+    });
+  };
+
+  return (
+    <div>
+      <div className="info-box">
+        プレイヤー1人を選んで、その人の初期役職を調査してください。<br />
+        (怪盗で交換された後でも、元の役職が分かります)
+      </div>
+      
+      <div className="player-list">
+        {otherPlayers.map((player) => (
+          <div 
+            key={player.id} 
+            className={`player-item ${selectedTarget === player.id ? 'selected' : ''}`}
+            onClick={() => setSelectedTarget(player.id)}
+            style={{ cursor: 'pointer', padding: '10px', margin: '5px', border: selectedTarget === player.id ? '2px solid blue' : '1px solid gray' }}
+          >
+            {player.name}
+          </div>
+        ))}
+      </div>
+      
+      <button onClick={executeAction} disabled={!selectedTarget}>
+        初期役職を調査
+      </button>
     </div>
   );
 }

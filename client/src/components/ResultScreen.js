@@ -3,10 +3,15 @@ import React from 'react';
 const roleInfo = {
   werewolf: { name: '人狼' },
   villager: { name: '村人' },
-  detective: { name: '探偵' },
+  fortune_teller: { name: '占い師' },
   thief: { name: '怪盗' },
   police: { name: '警察' },
-  madman: { name: '狂人' }
+  madman: { name: '狂人' },
+  medium: { name: '審神者' },
+  fool: { name: 'ばか' },
+  gravekeeper: { name: '墓守' },
+  witch: { name: '魔女っ子' },
+  hanged: { name: '吊人' }
 };
 
 function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
@@ -20,7 +25,13 @@ function ResultScreen({ results, onReset, onRematch, onReturnToLobby }) {
   }
 
   const getResultMessage = () => {
-    if (results.resultType === 'peace') {
+    if (results.resultType === 'hanged_win') {
+      return {
+        type: 'info',
+        message: '🎭 吊人の単独勝利!',
+        detail: '吊人が処刑されました!'
+      };
+    } else if (results.resultType === 'peace') {
       return {
         type: 'success',
         message: '🕊️ 平和村!',
