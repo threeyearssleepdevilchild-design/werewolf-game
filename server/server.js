@@ -32,7 +32,6 @@ const roleTeams = {
   hanged: 'hanged'
 };
 
-// ばかを隠蔽する関数
 function hideFool(role) {
   return role === 'fool' ? 'villager' : role;
 }
@@ -64,7 +63,7 @@ class GameRoom {
     this.votes = {};
     this.foolDisguiseRole = null;
     this.foolDisplayRole = null;
-    this.gravekeeperViewed = new Map(); // 墓守が見たカード情報を保存
+    this.gravekeeperPhase = new Map(); // playerId -> 'selecting' | 'confirming' | 'completed'
   }
 
   addPlayer(playerId, playerName, socketId) {
@@ -138,7 +137,7 @@ class GameRoom {
     this.nightResults = new Map();
     this.sealedPlayerId = null;
     this.votes = {};
-    this.gravekeeperViewed = new Map();
+    this.gravekeeperPhase = new Map();
     this.gameState = 'night';
 
     return true;
@@ -163,7 +162,14 @@ class GameRoom {
   }
 
   isAllPlayersCompleted() {
-    return this.players.every(p => this.nightActionsCompleted.has(p.id));
+    return this.players.every(p => {
+      if (p.role === 'gravekeeper') {
+        // 墓守は'completed'状態のみ完了とみなす
+        const phase = this.gravekeeperPhase.get(p.id);
+        return phase === 'completed';
+      }
+      return this.nightActionsCompleted.has(p.id);
+    });
   }
 
   swapRoles(playerId1, playerId2) {
@@ -719,58 +725,90 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 墓守専用：カードを見る（完了扱いにしない）
-  socket.on('gravekeeperView', ({ roomId, playerId, centerIndex }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      console.log(`墓守 ${playerId} が中央カード${centerIndex}を見ています`);
-      
-      const player = room.players.find(p => p.id === playerId);
-      if (player && player.role === 'gravekeeper') {
-        // 警察に封じられているかチェック
-        if (playerId === room.sealedPlayerId) {
-          socket.emit('gravekeeperViewResult', {
-            type: 'sealed'
-          });
-        } else {
-          const card = room.centerCards[centerIndex];
-          const displayCard = hideFool(card);
-          
-          // 情報を保存（後で使用）
-          room.gravekeeperViewed.set(playerId, {
-            centerIndex: centerIndex,
-            card: displayCard
-          });
-          
-          socket.emit('gravekeeperViewResult', {
-            type: 'success',
-            card: displayCard,
-            centerIndex: centerIndex
-          });
-        }
-      }
-    }
-  });
-
   socket.on('submitNightAction', ({ roomId, playerId, action }) => {
     const room = rooms.get(roomId);
     if (room) {
       console.log(`プレイヤー ${playerId} が夜行動を送信:`, action);
-      room.recordNightAction(playerId, action);
-      room.markPlayerCompleted(playerId);
+      
+      const player = room.players.find(p => p.id === playerId);
+      
+      if (player && player.role === 'gravekeeper') {
+        const currentPhase = room.gravekeeperPhase.get(playerId);
+        
+        if (!currentPhase || currentPhase === 'selecting') {
+          // 墓守の1回目: カード選択
+          room.recordNightAction(playerId, action);
+          room.markPlayerCompleted(playerId);
+          room.gravekeeperPhase.set(playerId, 'selecting');
+          console.log(`墓守 ${playerId} がカードを選択しました（フェーズ: selecting）`);
+        } else if (currentPhase === 'confirming') {
+          // 墓守の2回目: 交換の確定
+          room.recordNightAction(playerId, action);
+          room.gravekeeperPhase.set(playerId, 'completed');
+          room.markPlayerCompleted(playerId);
+          console.log(`墓守 ${playerId} が交換を選択しました（フェーズ: completed）`);
+        }
+      } else {
+        // 他の役職は通常通り
+        room.recordNightAction(playerId, action);
+        room.markPlayerCompleted(playerId);
+      }
       
       if (room.isAllPlayersCompleted()) {
         console.log('全員が夜行動を完了しました。処理を開始します。');
         
         const results = room.processNightActions();
         
+        // 墓守の処理
+        const gravekeepers = room.players.filter(p => p.role === 'gravekeeper' && room.gravekeeperPhase.get(p.id) === 'selecting');
+        
+        if (gravekeepers.length > 0) {
+          console.log('墓守にカード情報を送信し、確認フェーズに移行します');
+          
+          gravekeepers.forEach(gk => {
+            const result = results.get(gk.id);
+            const action = room.nightActions.get(gk.id);
+            
+            if (result.type === 'sealed') {
+              // 警察に封じられている場合
+              io.to(gk.socketId).emit('gravekeeperViewResult', {
+                type: 'sealed'
+              });
+              // 封じられた場合は即完了
+              room.gravekeeperPhase.set(gk.id, 'completed');
+            } else if (result.viewed && action.centerIndex !== undefined) {
+              // カード情報を送信
+              io.to(gk.socketId).emit('gravekeeperViewResult', {
+                type: 'success',
+                card: result.card,
+                centerIndex: action.centerIndex
+              });
+              // 確認フェーズに移行
+              room.gravekeeperPhase.set(gk.id, 'confirming');
+              // 完了フラグを一旦外す
+              room.nightActionsCompleted.delete(gk.id);
+            } else {
+              // 見ないを選択した場合
+              room.gravekeeperPhase.set(gk.id, 'completed');
+            }
+          });
+          
+          // 墓守がまだ確認中なら、ここで終了
+          if (!room.isAllPlayersCompleted()) {
+            console.log('墓守の確認待ち...');
+            return;
+          }
+        }
+        
+        // 通常の結果送信
         room.players.forEach(player => {
           const result = results.get(player.id);
-          if (result) {
+          if (result && player.role !== 'gravekeeper') {
             io.to(player.socketId).emit('nightResult', result);
           }
         });
         
+        // 議論フェーズへ移行
         setTimeout(() => {
           room.gameState = 'discussion';
           
