@@ -44,9 +44,6 @@ const clearGameState = () => {
 };
 
 function App() {
-  // 保存された状態を読み込み
-  const savedState = loadGameState();
-
   const [playerId] = useState(() => {
     const saved = sessionStorage.getItem('playerId');
     if (saved) return saved;
@@ -54,6 +51,20 @@ function App() {
     sessionStorage.setItem('playerId', newId);
     return newId;
   });
+
+  // 保存された状態を読み込み（本人確認付き）
+  const savedState = (() => {
+    const state = loadGameState();
+    // 保存されたplayerIdと現在のplayerIdが一致する場合のみ復元
+    if (state && state.playerId === playerId) {
+      return state;
+    }
+    // 一致しない場合は保存された状態をクリア
+    if (state && state.playerId !== playerId) {
+      clearGameState();
+    }
+    return null;
+  })();
 
   const [currentScreen, setCurrentScreen] = useState(savedState?.currentScreen || 'home');
   const [playerName, setPlayerName] = useState(savedState?.playerName || '');
@@ -68,10 +79,11 @@ function App() {
   const [gameRoles, setGameRoles] = useState(savedState?.gameRoles || null);
   const [reconnectMessage, setReconnectMessage] = useState('');
 
-  // 状態が変更されたら保存
+  // 状態が変更されたら保存（playerIdも含める）
   useEffect(() => {
     if (roomId && playerName) {
       saveGameState({
+        playerId, // playerIdを保存に含める
         currentScreen,
         playerName,
         roomId,
@@ -83,9 +95,9 @@ function App() {
         gameRoles
       });
     }
-  }, [currentScreen, playerName, roomId, isHost, myRole, myFinalRole, gamePhase, nightResult, gameRoles]);
+  }, [playerId, currentScreen, playerName, roomId, isHost, myRole, myFinalRole, gamePhase, nightResult, gameRoles]);
 
-  // 初回読み込み時に自動再接続を試みる
+  // 初回読み込み時に自動再接続を試みる（本人確認済みの場合のみ）
   useEffect(() => {
     if (savedState && savedState.roomId && savedState.playerName && savedState.currentScreen !== 'home') {
       console.log('保存された状態を検出。再接続を試みます...', savedState);
