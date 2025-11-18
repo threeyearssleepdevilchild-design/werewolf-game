@@ -147,7 +147,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
       {myRole === 'medium' && <MediumAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'fortune_teller' && <FortuneTellerAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'thief' && <ThiefAction roomId={roomId} playerId={playerId} roomData={roomData} />}
-      {myRole === 'gravekeeper' && <GravekeeperAction roomId={roomId} playerId={playerId} />}
+      {myRole === 'gravekeeper' && <GravekeeperAction roomId={roomId} playerId={playerId} actionResult={actionResult} />}
       {myRole === 'witch' && <WitchAction roomId={roomId} playerId={playerId} roomData={roomData} />}
     </div>
   );
@@ -397,17 +397,36 @@ function ThiefAction({ roomId, playerId, roomData }) {
   );
 }
 
-// 墓守の行動コンポーネント
-function GravekeeperAction({ roomId, playerId }) {
+// 墓守の行動コンポーネント（修正版）
+function GravekeeperAction({ roomId, playerId, actionResult }) {
   const [phase, setPhase] = useState('select');
   const [selectedIndex, setSelectedIndex] = useState(null);
+  const [viewedCard, setViewedCard] = useState(null);
+
+  // サーバーから結果を受け取ったら表示
+  useEffect(() => {
+    if (actionResult && actionResult.type === 'gravekeeper' && actionResult.viewed) {
+      setViewedCard(actionResult.card);
+      setPhase('confirm');
+    } else if (actionResult && actionResult.type === 'sealed') {
+      // 警察に封じられた場合
+      setPhase('sealed');
+    }
+  }, [actionResult]);
 
   const viewCard = (index) => {
     setSelectedIndex(index);
-    setPhase('view');
+    // まずサーバーに「見るだけ」のリクエストを送る
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'viewCenter', centerIndex: index, shouldSwap: false }
+    });
+    setPhase('loading');
   };
 
   const swapCard = () => {
+    // 交換を確定
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -416,11 +435,8 @@ function GravekeeperAction({ roomId, playerId }) {
   };
 
   const skipSwap = () => {
-    socket.emit('submitNightAction', {
-      roomId,
-      playerId,
-      action: { type: 'viewCenter', centerIndex: selectedIndex, shouldSwap: false }
-    });
+    // 既に「見るだけ」のアクションを送信済みなので、何もしない
+    // 結果画面に遷移するのを待つ
   };
 
   const skipAll = () => {
@@ -430,6 +446,17 @@ function GravekeeperAction({ roomId, playerId }) {
       action: { type: 'viewCenter' }
     });
   };
+
+  if (phase === 'sealed') {
+    return (
+      <div>
+        <div className="warning-box">
+          ⚠️ 警察によってあなたの能力が封じられました。<br />
+          中央カードを見ることができません。
+        </div>
+      </div>
+    );
+  }
 
   if (phase === 'select') {
     return (
@@ -455,11 +482,27 @@ function GravekeeperAction({ roomId, playerId }) {
     );
   }
 
-  if (phase === 'view') {
+  if (phase === 'loading') {
     return (
       <div>
         <div className="info-box">
-          中央カード{selectedIndex + 1}枚目を確認しました。<br />
+          中央カード{selectedIndex + 1}枚目を確認中...
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'confirm' && viewedCard) {
+    return (
+      <div>
+        <div className="info-box" style={{ backgroundColor: '#e3f2fd', borderLeft: '4px solid #2196f3' }}>
+          <strong>中央カード{selectedIndex + 1}枚目：</strong><br />
+          <div className={`card ${roleInfo[viewedCard]?.color || 'villager'}`} style={{ display: 'inline-block', margin: '10px 0' }}>
+            {roleInfo[viewedCard]?.name || viewedCard}
+          </div>
+        </div>
+
+        <div className="info-box">
           自分と交換しますか?
         </div>
 
@@ -474,6 +517,8 @@ function GravekeeperAction({ roomId, playerId }) {
       </div>
     );
   }
+
+  return null;
 }
 
 // 魔女っ子の行動コンポーネント
