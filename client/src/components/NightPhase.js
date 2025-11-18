@@ -73,7 +73,6 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
         <h1>🌙 夜フェーズ</h1>
         <h2>あなたの役職</h2>
 
-        {/* 役職一覧を表示 */}
         {gameRoles && (
           <div className="info-box" style={{ backgroundColor: '#f0f0f0', borderLeft: '4px solid #666' }}>
             <strong>使用中の役職:</strong><br />
@@ -147,7 +146,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
       {myRole === 'medium' && <MediumAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'fortune_teller' && <FortuneTellerAction roomId={roomId} playerId={playerId} roomData={roomData} />}
       {myRole === 'thief' && <ThiefAction roomId={roomId} playerId={playerId} roomData={roomData} />}
-      {myRole === 'gravekeeper' && <GravekeeperAction roomId={roomId} playerId={playerId} actionResult={actionResult} />}
+      {myRole === 'gravekeeper' && <GravekeeperAction roomId={roomId} playerId={playerId} />}
       {myRole === 'witch' && <WitchAction roomId={roomId} playerId={playerId} roomData={roomData} />}
     </div>
   );
@@ -397,36 +396,45 @@ function ThiefAction({ roomId, playerId, roomData }) {
   );
 }
 
-// 墓守の行動コンポーネント（修正版）
-function GravekeeperAction({ roomId, playerId, actionResult }) {
+// 墓守の行動コンポーネント（完全2段階処理版）
+function GravekeeperAction({ roomId, playerId }) {
   const [phase, setPhase] = useState('select');
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [viewedCard, setViewedCard] = useState(null);
 
-  // サーバーから結果を受け取ったら表示
   useEffect(() => {
-    if (actionResult && actionResult.type === 'gravekeeper' && actionResult.viewed) {
-      setViewedCard(actionResult.card);
-      setPhase('confirm');
-    } else if (actionResult && actionResult.type === 'sealed') {
-      // 警察に封じられた場合
-      setPhase('sealed');
-    }
-  }, [actionResult]);
+    // 墓守専用の結果を受信
+    socket.on('gravekeeperViewResult', (result) => {
+      console.log('墓守の閲覧結果:', result);
+      
+      if (result.type === 'sealed') {
+        setPhase('sealed');
+      } else if (result.type === 'success') {
+        setViewedCard(result.card);
+        setSelectedIndex(result.centerIndex);
+        setPhase('confirm');
+      }
+    });
+
+    return () => {
+      socket.off('gravekeeperViewResult');
+    };
+  }, []);
 
   const viewCard = (index) => {
     setSelectedIndex(index);
-    // まずサーバーに「見るだけ」のリクエストを送る
-    socket.emit('submitNightAction', {
+    setPhase('loading');
+    
+    // サーバーに「見る」リクエスト（完了扱いにしない）
+    socket.emit('gravekeeperView', {
       roomId,
       playerId,
-      action: { type: 'viewCenter', centerIndex: index, shouldSwap: false }
+      centerIndex: index
     });
-    setPhase('loading');
   };
 
   const swapCard = () => {
-    // 交換を確定
+    // 交換を選択して完了
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -435,11 +443,16 @@ function GravekeeperAction({ roomId, playerId, actionResult }) {
   };
 
   const skipSwap = () => {
-    // 既に「見るだけ」のアクションを送信済みなので、何もしない
-    // 結果画面に遷移するのを待つ
+    // 交換しないで完了
+    socket.emit('submitNightAction', {
+      roomId,
+      playerId,
+      action: { type: 'viewCenter', centerIndex: selectedIndex, shouldSwap: false }
+    });
   };
 
   const skipAll = () => {
+    // 何も見ないで完了
     socket.emit('submitNightAction', {
       roomId,
       playerId,
@@ -454,6 +467,15 @@ function GravekeeperAction({ roomId, playerId, actionResult }) {
           ⚠️ 警察によってあなたの能力が封じられました。<br />
           中央カードを見ることができません。
         </div>
+        <button onClick={() => {
+          socket.emit('submitNightAction', {
+            roomId,
+            playerId,
+            action: { type: 'viewCenter' }
+          });
+        }}>
+          確認
+        </button>
       </div>
     );
   }
@@ -495,15 +517,15 @@ function GravekeeperAction({ roomId, playerId, actionResult }) {
   if (phase === 'confirm' && viewedCard) {
     return (
       <div>
-        <div className="info-box" style={{ backgroundColor: '#e3f2fd', borderLeft: '4px solid #2196f3' }}>
+        <div className="info-box" style={{ backgroundColor: '#e3f2fd', borderLeft: '4px solid #2196f3', padding: '15px' }}>
           <strong>中央カード{selectedIndex + 1}枚目：</strong><br />
-          <div className={`card ${roleInfo[viewedCard]?.color || 'villager'}`} style={{ display: 'inline-block', margin: '10px 0' }}>
+          <div className={`card ${roleInfo[viewedCard]?.color || 'villager'}`} style={{ display: 'inline-block', margin: '10px 0', padding: '10px 20px', fontSize: '18px' }}>
             {roleInfo[viewedCard]?.name || viewedCard}
           </div>
         </div>
 
         <div className="info-box">
-          自分と交換しますか?
+          自分のカードと交換しますか?
         </div>
 
         <div className="action-buttons">

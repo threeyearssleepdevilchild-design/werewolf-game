@@ -64,6 +64,7 @@ class GameRoom {
     this.votes = {};
     this.foolDisguiseRole = null;
     this.foolDisplayRole = null;
+    this.gravekeeperViewed = new Map(); // 墓守が見たカード情報を保存
   }
 
   addPlayer(playerId, playerName, socketId) {
@@ -137,6 +138,7 @@ class GameRoom {
     this.nightResults = new Map();
     this.sealedPlayerId = null;
     this.votes = {};
+    this.gravekeeperViewed = new Map();
     this.gameState = 'night';
 
     return true;
@@ -299,7 +301,7 @@ class GameRoom {
       }
     });
 
-    // 2. 審神者の処理（ばかは村人陣営と表示）
+    // 2. 審神者の処理
     this.players.forEach(player => {
       if (player.role === 'medium') {
         if (player.id === this.sealedPlayerId) {
@@ -328,7 +330,7 @@ class GameRoom {
       }
     });
 
-    // 3. 占い師の処理（ばかは村人と表示）
+    // 3. 占い師の処理
     this.players.forEach(player => {
       if (player.role === 'fortune_teller') {
         if (player.id === this.sealedPlayerId) {
@@ -341,7 +343,6 @@ class GameRoom {
           if (action && action.type === 'checkPlayer' && action.targetId) {
             const targetPlayer = this.players.find(p => p.id === action.targetId);
             if (targetPlayer) {
-              // ばかは村人として表示
               const displayRole = hideFool(targetPlayer.role);
               
               this.nightResults.set(player.id, {
@@ -352,7 +353,6 @@ class GameRoom {
               });
             }
           } else if (action && action.type === 'checkCenter') {
-            // 中央カードの狂人とばかは村人と表示
             const cards = this.centerCards.map(card => {
               if (card === 'madman' || card === 'fool') return 'villager';
               return card;
@@ -382,7 +382,7 @@ class GameRoom {
       }
     });
 
-    // 5. 怪盗の処理（ばかは村人と表示）
+    // 5. 怪盗の処理
     this.players.forEach(player => {
       if (player.role === 'thief') {
         if (player.id === this.sealedPlayerId) {
@@ -395,7 +395,6 @@ class GameRoom {
           if (action && action.type === 'swap' && action.targetId) {
             this.swapRoles(player.id, action.targetId);
             const newRole = this.getPlayerFinalRole(player.id);
-            // ばかは村人として表示
             const displayRole = hideFool(newRole);
             
             this.nightResults.set(player.id, {
@@ -413,11 +412,10 @@ class GameRoom {
       }
     });
 
-    // 6. 墓守の処理（警察に封じられている場合は何も見えない）
+    // 6. 墓守の処理
     this.players.forEach(player => {
       if (player.role === 'gravekeeper') {
         if (player.id === this.sealedPlayerId) {
-          // 警察に封じられている場合は何も見えない
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
@@ -426,7 +424,6 @@ class GameRoom {
           
           if (action && action.type === 'viewCenter' && action.centerIndex !== undefined) {
             const card = this.centerCards[action.centerIndex];
-            // ばかは村人として表示
             const displayCard = hideFool(card);
             
             if (action.shouldSwap) {
@@ -458,7 +455,7 @@ class GameRoom {
       }
     });
 
-    // 7. 魔女っ子の処理（ばかは村人と表示）
+    // 7. 魔女っ子の処理
     this.players.forEach(player => {
       if (player.role === 'witch') {
         if (player.id === this.sealedPlayerId) {
@@ -471,7 +468,6 @@ class GameRoom {
           if (action && action.type === 'checkOriginal' && action.targetId) {
             const targetPlayer = this.players.find(p => p.id === action.targetId);
             if (targetPlayer) {
-              // ばかは村人として表示
               const displayRole = hideFool(targetPlayer.role);
               
               this.nightResults.set(player.id, {
@@ -720,6 +716,39 @@ io.on('connection', (socket) => {
       });
 
       io.to(roomId).emit('phaseChange', { phase: 'night' });
+    }
+  });
+
+  // 墓守専用：カードを見る（完了扱いにしない）
+  socket.on('gravekeeperView', ({ roomId, playerId, centerIndex }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      console.log(`墓守 ${playerId} が中央カード${centerIndex}を見ています`);
+      
+      const player = room.players.find(p => p.id === playerId);
+      if (player && player.role === 'gravekeeper') {
+        // 警察に封じられているかチェック
+        if (playerId === room.sealedPlayerId) {
+          socket.emit('gravekeeperViewResult', {
+            type: 'sealed'
+          });
+        } else {
+          const card = room.centerCards[centerIndex];
+          const displayCard = hideFool(card);
+          
+          // 情報を保存（後で使用）
+          room.gravekeeperViewed.set(playerId, {
+            centerIndex: centerIndex,
+            card: displayCard
+          });
+          
+          socket.emit('gravekeeperViewResult', {
+            type: 'success',
+            card: displayCard,
+            centerIndex: centerIndex
+          });
+        }
+      }
     }
   });
 

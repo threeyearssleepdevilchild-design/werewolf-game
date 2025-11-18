@@ -220,13 +220,6 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, 
         <strong>勝利条件:</strong> {getWinCondition()}
       </div>
 
-      <div className="warning-box">
-        <strong>⏰ 議論時間: 3〜5分</strong><br />
-        ・自分の役職や情報を共有しましょう<br />
-        ・嘘をついても構いません<br />
-        ・矛盾を見つけて推理しましょう
-      </div>
-
       {/* 投票 */}
       <h2>🗳️ 投票</h2>
 
