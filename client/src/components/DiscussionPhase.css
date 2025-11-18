@@ -1,0 +1,337 @@
+/* ==========================================
+   DiscussionPhase.css - 議論画面専用スタイル
+   ========================================== */
+
+/* === 全体レイアウト === */
+.discussion-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  max-width: 1400px;
+  margin: 0 auto;
+  animation: fadeIn 0.5s ease;
+}
+
+/* メインコンテンツエリア */
+.discussion-main {
+  min-width: 0; /* グリッドオーバーフロー防止 */
+}
+
+/* メモサイドバー */
+.memo-sidebar {
+  position: sticky;
+  top: var(--space-lg);
+  height: fit-content;
+  max-height: calc(100vh - var(--space-xl));
+  overflow-y: auto;
+  animation: slideInRight 0.5s ease;
+}
+
+/* === メモコンテナ === */
+.memo-container {
+  background: var(--light-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--accent);
+}
+
+.memo-title {
+  color: var(--dark-primary);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  margin-bottom: var(--space-md);
+  text-align: center;
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.memo-help {
+  background: var(--gray-50);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+  text-align: center;
+  margin-bottom: var(--space-md);
+}
+
+/* === プレイヤー選択ボタン === */
+.memo-player-select {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.memo-player-btn {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  margin: 0;
+  background: var(--gray-100);
+  color: var(--dark-primary);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+}
+
+.memo-player-btn:hover {
+  background: var(--gray-200);
+  transform: translateX(3px);
+}
+
+.memo-player-btn.active {
+  background: var(--accent);
+  color: var(--light-secondary);
+  border-color: var(--accent);
+  transform: translateX(5px);
+  box-shadow: var(--shadow-md);
+}
+
+.memo-player-btn.has-memo {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-color: var(--warning);
+}
+
+.memo-player-btn.has-memo.active {
+  background: var(--accent);
+  color: var(--light-secondary);
+}
+
+.memo-indicator {
+  color: var(--warning);
+  font-size: var(--text-lg);
+  animation: pulse 2s infinite;
+}
+
+/* === メモ編集エリア === */
+.memo-edit-area {
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  animation: scaleUp 0.3s ease;
+}
+
+.memo-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.memo-edit-header strong {
+  color: var(--dark-primary);
+  font-size: var(--text-sm);
+}
+
+.memo-clear-btn {
+  width: auto;
+  padding: var(--space-xs) var(--space-sm);
+  margin: 0;
+  background: var(--error);
+  font-size: var(--text-xs);
+  min-height: auto;
+}
+
+.memo-clear-btn:hover {
+  background: #d32f2f;
+}
+
+/* === メモ表示 === */
+.memo-display {
+  background: var(--light-secondary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.memo-line {
+  font-size: var(--text-sm);
+  color: var(--dark-primary);
+  padding: var(--space-xs) 0;
+  word-wrap: break-word;
+  animation: slideInLeft 0.3s ease;
+}
+
+.memo-line:not(:last-child) {
+  border-bottom: 1px solid var(--gray-100);
+}
+
+/* === メモ入力エリア === */
+.memo-input-area {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
+.memo-input-area input {
+  flex: 1;
+  padding: var(--space-sm);
+  margin: 0;
+  font-size: var(--text-sm);
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  min-height: auto;
+}
+
+.memo-input-area input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(155, 89, 182, 0.1);
+}
+
+.memo-add-btn {
+  width: auto;
+  padding: var(--space-sm) var(--space-md);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  min-height: auto;
+}
+
+/* === メモ空状態 === */
+.memo-empty {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--gray-500);
+  font-size: var(--text-sm);
+}
+
+/* === 投票ボタンにメモバッジ === */
+.memo-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: var(--warning);
+  color: var(--light-secondary);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  box-shadow: var(--shadow-md);
+  animation: bounce 1s infinite;
+}
+
+.vote-grid button {
+  position: relative;
+}
+
+/* === タブレット対応 === */
+@media (max-width: 1024px) {
+  .discussion-wrapper {
+    grid-template-columns: 1fr 250px;
+    gap: var(--space-md);
+    padding: var(--space-md);
+  }
+
+  .memo-container {
+    padding: var(--space-md);
+  }
+
+  .memo-title {
+    font-size: var(--text-lg);
+  }
+}
+
+/* === スマホ対応 === */
+@media (max-width: 768px) {
+  .discussion-wrapper {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+  }
+
+  .memo-sidebar {
+    position: static;
+    max-height: none;
+    order: 2; /* メモを下に配置 */
+  }
+
+  .discussion-main {
+    order: 1;
+  }
+
+  .memo-container {
+    padding: var(--space-sm);
+  }
+
+  .memo-title {
+    font-size: var(--text-base);
+  }
+
+  .memo-player-btn {
+    font-size: var(--text-xs);
+    padding: var(--space-xs) var(--space-sm);
+    min-height: 36px;
+  }
+
+  .memo-display {
+    max-height: 150px;
+  }
+
+  .memo-line {
+    font-size: var(--text-xs);
+  }
+
+  .memo-input-area input {
+    font-size: var(--text-xs);
+  }
+
+  .memo-add-btn {
+    font-size: var(--text-xs);
+    padding: var(--space-xs) var(--space-sm);
+  }
+}
+
+/* === スクロールバーカスタマイズ（メモエリア用）=== */
+.memo-sidebar::-webkit-scrollbar,
+.memo-display::-webkit-scrollbar {
+  width: 6px;
+}
+
+.memo-sidebar::-webkit-scrollbar-track,
+.memo-display::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+}
+
+.memo-sidebar::-webkit-scrollbar-thumb,
+.memo-display::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.memo-sidebar::-webkit-scrollbar-thumb:hover,
+.memo-display::-webkit-scrollbar-thumb:hover {
+  background: var(--dark-primary);
+}
+
+/* === アニメーション強化 === */
+.memo-player-btn {
+  animation: slideInLeft 0.3s ease;
+  animation-fill-mode: both;
+}
+
+.memo-player-btn:nth-child(1) { animation-delay: 0.05s; }
+.memo-player-btn:nth-child(2) { animation-delay: 0.1s; }
+.memo-player-btn:nth-child(3) { animation-delay: 0.15s; }
+.memo-player-btn:nth-child(4) { animation-delay: 0.2s; }
+.memo-player-btn:nth-child(5) { animation-delay: 0.25s; }
+.memo-player-btn:nth-child(6) { animation-delay: 0.3s; }
+.memo-player-btn:nth-child(7) { animation-delay: 0.35s; }
+.memo-player-btn:nth-child(8) { animation-delay: 0.4s; }

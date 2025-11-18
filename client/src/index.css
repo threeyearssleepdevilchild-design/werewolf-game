@@ -1,20 +1,337 @@
+/* ==========================================
+   ワンナイト人狼 統一テーマシステム
+   ========================================== */
+
+/* === カラーパレット === */
+:root {
+  /* 基本色 */
+  --dark-primary: #2c3e50;
+  --dark-secondary: #34495e;
+  --light-primary: #ecf0f1;
+  --light-secondary: #ffffff;
+  
+  /* 陣営色 */
+  --werewolf-team: #e74c3c;
+  --villager-team: #3498db;
+  --third-team: #f39c12;
+  --accent: #9b59b6;
+  
+  /* 状態色 */
+  --success: #4caf50;
+  --warning: #ff9800;
+  --error: #f44336;
+  --info: #2196f3;
+  
+  /* グレースケール */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  
+  /* シャドウ */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 10px 40px rgba(0, 0, 0, 0.2);
+  
+  /* ボーダーラディウス */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  
+  /* スペーシング */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* フォントサイズ */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+  
+  /* トランジション */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 350ms ease;
+}
+
+/* === リセット === */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* === ベーススタイル === */
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--dark-primary) 0%, var(--accent) 100%);
   min-height: 100vh;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--gray-900);
+}
+
+/* スマホ対応 */
+@media (max-width: 768px) {
+  body {
+    font-size: var(--text-sm);
+  }
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* === アニメーション定義 === */
+
+/* フェードイン */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* フェードアウト */
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* カード回転 */
+@keyframes cardFlip {
+  0% {
+    transform: rotateY(0deg);
+  }
+  50% {
+    transform: rotateY(90deg);
+  }
+  100% {
+    transform: rotateY(0deg);
+  }
+}
+
+/* スライドイン（左から）*/
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* スライドイン（右から）*/
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* パルス効果 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* バウンス */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* スケールアップ */
+@keyframes scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 投票の票が飛ぶアニメーション */
+@keyframes votefly {
+  0% {
+    transform: translateX(-100px) translateY(-20px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* === アニメーションクラス === */
+.fade-in {
+  animation: fadeIn var(--transition-base) forwards;
+}
+
+.fade-out {
+  animation: fadeOut var(--transition-base) forwards;
+}
+
+.card-flip {
+  animation: cardFlip 0.6s ease-in-out;
+}
+
+.slide-in-left {
+  animation: slideInLeft var(--transition-base) forwards;
+}
+
+.slide-in-right {
+  animation: slideInRight var(--transition-base) forwards;
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+.bounce {
+  animation: bounce 1s infinite;
+}
+
+.scale-up {
+  animation: scaleUp var(--transition-base) forwards;
+}
+
+/* === ユーティリティクラス === */
+
+/* レスポンシブコンテナ */
+.responsive-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .responsive-container {
+    padding: var(--space-sm);
+  }
+}
+
+/* タッチフレンドリー（最小44px） */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* フレックスユーティリティ */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* グリッドユーティリティ */
+.grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+}
+
+/* スクロールバーカスタマイズ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
+}
+
+/* === アクセシビリティ === */
+
+/* フォーカス表示 */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* モーション削減設定 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
