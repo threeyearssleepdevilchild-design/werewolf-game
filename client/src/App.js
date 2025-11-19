@@ -10,6 +10,8 @@ import NightPhase from './components/NightPhase';
 import DiscussionPhase from './components/DiscussionPhase';
 import VotingPhase from './components/VotingPhase';
 import ResultScreen from './components/ResultScreen';
+import DarkModeToggle from './components/DarkModeToggle';
+import FoolBGM from './components/FoolBGM';
 
 // LocalStorageのキー
 const STORAGE_KEY = 'werewolf_game_state';
@@ -78,6 +80,11 @@ function App() {
   const [nightResult, setNightResult] = useState(savedState?.nightResult || null);
   const [gameRoles, setGameRoles] = useState(savedState?.gameRoles || null);
   const [reconnectMessage, setReconnectMessage] = useState('');
+  
+  // 新機能用のstate
+  const [discussionTime, setDiscussionTime] = useState(300);
+  const [isFoolTrue, setIsFoolTrue] = useState(false);
+  const [nightActionHistory, setNightActionHistory] = useState([]);
 
   // 状態が変更されたら保存（playerIdも含める）
   useEffect(() => {
@@ -140,6 +147,7 @@ function App() {
       setMyFinalRole(data.finalRole);
       setGameRoles(data.gameRoles);
       setNightResult(data.nightResult);
+      setDiscussionTime(data.discussionTime || 300);
       
       // ゲーム状態に応じて画面を設定
       if (data.gameState === 'night') {
@@ -186,6 +194,8 @@ function App() {
       setGamePhase('night');
       setCurrentScreen('night');
       setGameRoles(data.roles);
+      setDiscussionTime(data.discussionTime || 300);
+      setIsFoolTrue(data.isFoolTrue || false);
     });
 
     socket.on('phaseChange', (data) => {
@@ -198,6 +208,8 @@ function App() {
       console.log('議論開始:', data);
       setMyFinalRole(data.finalRole);
       setGameRoles(data.roles);
+      setDiscussionTime(data.discussionTime || 300);
+      setIsFoolTrue(data.isFoolTrue || false);
     });
 
     socket.on('gameResults', (data) => {
@@ -205,6 +217,8 @@ function App() {
       setGameResults(data);
       setGamePhase('result');
       setCurrentScreen('result');
+      setNightActionHistory(data.nightActions || []);
+      setIsFoolTrue(false); // 結果画面でBGM停止
     });
 
     socket.on('nightResult', (result) => {
@@ -242,7 +256,8 @@ function App() {
     });
   };
 
-  const handleShowRoleConfig = () => {
+  const handleShowRoleConfig = (time) => {
+    setDiscussionTime(time);
     setCurrentScreen('roleConfig');
   };
 
@@ -251,7 +266,10 @@ function App() {
   };
 
   const handleStartGame = () => {
-    socket.emit('startGame', { roomId });
+    socket.emit('startGame', { 
+      roomId,
+      discussionTime
+    });
   };
 
   const handleStartDiscussion = () => {
@@ -273,6 +291,9 @@ function App() {
     setGameResults(null);
     setNightResult(null);
     setGameRoles(null);
+    setDiscussionTime(300);
+    setIsFoolTrue(false);
+    setNightActionHistory([]);
     clearGameState(); // 保存された状態をクリア
     socket.disconnect();
   };
@@ -280,6 +301,8 @@ function App() {
   const handleRematch = () => {
     socket.emit('rematch', { roomId });
     setNightResult(null);
+    setIsFoolTrue(false);
+    setNightActionHistory([]);
   };
 
   const handleReturnToLobby = () => {
@@ -290,10 +313,18 @@ function App() {
     setGameResults(null);
     setNightResult(null);
     setGameRoles(null);
+    setIsFoolTrue(false);
+    setNightActionHistory([]);
   };
 
   return (
     <div className="App">
+      {/* ダークモード切り替えボタン */}
+      <DarkModeToggle />
+      
+      {/* ばかの本物判定時のBGM */}
+      <FoolBGM isFoolTrue={isFoolTrue} />
+
       {/* 再接続メッセージ */}
       {reconnectMessage && (
         <div style={{
@@ -354,6 +385,7 @@ function App() {
           myFinalRole={myFinalRole}
           nightResult={nightResult}
           gameRoles={gameRoles}
+          discussionTime={discussionTime}
         />
       )}
       
@@ -369,6 +401,7 @@ function App() {
         <ResultScreen 
           results={gameResults} 
           onReturnToLobby={handleReturnToLobby}
+          nightActions={nightActionHistory}
         />
       )}
     </div>

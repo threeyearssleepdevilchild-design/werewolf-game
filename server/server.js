@@ -63,7 +63,10 @@ class GameRoom {
     this.votes = {};
     this.foolDisguiseRole = null;
     this.foolDisplayRole = null;
-    this.gravekeeperPhase = new Map(); // playerId -> 'selecting' | 'confirming' | 'completed'
+    this.gravekeeperPhase = new Map();
+    this.discussionTime = 300; // 議論時間（デフォルト5分）
+    this.isFoolTrue = false; // ばかの結果が本物かどうか
+    this.nightActionHistory = []; // 夜フェーズの行動履歴
   }
 
   addPlayer(playerId, playerName, socketId) {
@@ -129,7 +132,10 @@ class GameRoom {
       const villagerRoles = ['fortune_teller', 'thief', 'police', 'gravekeeper', 'witch', 'medium'];
       this.foolDisplayRole = villagerRoles[Math.floor(Math.random() * villagerRoles.length)];
       foolPlayer.displayRole = this.foolDisplayRole;
-      console.log(`ばかは ${this.foolDisplayRole} を演じます`);
+      
+      // 1/10の確率で本物
+      this.isFoolTrue = Math.random() < 0.1;
+      console.log(`ばかは ${this.foolDisplayRole} を演じます (本物: ${this.isFoolTrue})`);
     }
 
     this.nightActions = new Map();
@@ -138,6 +144,7 @@ class GameRoom {
     this.sealedPlayerId = null;
     this.votes = {};
     this.gravekeeperPhase = new Map();
+    this.nightActionHistory = [];
     this.gameState = 'night';
 
     return true;
@@ -164,7 +171,6 @@ class GameRoom {
   isAllPlayersCompleted() {
     return this.players.every(p => {
       if (p.role === 'gravekeeper') {
-        // 墓守は'completed'状態のみ完了とみなす
         const phase = this.gravekeeperPhase.get(p.id);
         return phase === 'completed';
       }
@@ -198,58 +204,108 @@ class GameRoom {
   }
 
   generateFoolInfo(disguiseRole) {
-    const allRoles = ['werewolf', 'villager', 'fortune_teller', 'thief', 'police', 'madman', 'medium', 'fool', 'gravekeeper', 'witch', 'hanged'];
-    
-    if (disguiseRole === 'fortune_teller' || disguiseRole === 'medium' || disguiseRole === 'witch') {
-      const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
-      const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
-      
+    // 本物の結果を返す場合
+    if (this.isFoolTrue) {
+      const foolPlayer = this.players.find(p => p.role === 'fool');
+      if (!foolPlayer) return { type: 'wait' };
+
+      // 実際の能力を実行
       if (disguiseRole === 'fortune_teller') {
+        const otherPlayers = this.players.filter(p => p.id !== foolPlayer.id);
+        const target = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
         return {
-          type: 'fortune_teller',
-          subtype: 'player',
-          playerName: randomPlayer.name,
-          role: randomRole
+          type: 'fool',
+          abilityType: 'fortune_teller',
+          playerName: target.name,
+          role: target.finalRole,
+          isTrueResult: true
         };
       } else if (disguiseRole === 'medium') {
-        const randomTeam = Math.random() < 0.5 ? '村人陣営' : '人狼陣営';
+        const otherPlayers = this.players.filter(p => p.id !== foolPlayer.id);
+        const target = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        const team = roleTeams[target.finalRole] === 'werewolf' ? '人狼陣営' : 
+                     roleTeams[target.finalRole] === 'hanged' ? '第三陣営' : '村人陣営';
         return {
-          type: 'medium',
-          playerName: randomPlayer.name,
-          team: randomTeam
+          type: 'fool',
+          abilityType: 'medium',
+          playerName: target.name,
+          team: team,
+          isTrueResult: true
+        };
+      } else if (disguiseRole === 'thief') {
+        const otherPlayers = this.players.filter(p => p.id !== foolPlayer.id);
+        const target = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        // 実際に交換
+        this.swapRoles(foolPlayer.id, target.id);
+        return {
+          type: 'fool',
+          abilityType: 'thief',
+          swapped: true,
+          newRole: foolPlayer.finalRole,
+          isTrueResult: true
         };
       } else if (disguiseRole === 'witch') {
+        const otherPlayers = this.players.filter(p => p.id !== foolPlayer.id);
+        const target = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
         return {
-          type: 'witch',
-          playerName: randomPlayer.name,
-          role: randomRole
+          type: 'fool',
+          abilityType: 'witch',
+          playerName: target.name,
+          role: target.role,
+          isTrueResult: true
         };
       }
+    }
+
+    // 嘘の結果を返す
+    const allRoles = ['werewolf', 'villager', 'fortune_teller', 'thief', 'police', 'madman', 'medium', 'fool', 'gravekeeper', 'witch', 'hanged'];
+    
+    if (disguiseRole === 'fortune_teller') {
+      const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
+      const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
+      return {
+        type: 'fool',
+        abilityType: 'fortune_teller',
+        playerName: randomPlayer.name,
+        role: randomRole,
+        isTrueResult: false
+      };
+    } else if (disguiseRole === 'medium') {
+      const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
+      const randomTeam = Math.random() < 0.5 ? '村人陣営' : '人狼陣営';
+      return {
+        type: 'fool',
+        abilityType: 'medium',
+        playerName: randomPlayer.name,
+        team: randomTeam,
+        isTrueResult: false
+      };
     } else if (disguiseRole === 'thief') {
       const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
       return {
-        type: 'thief',
+        type: 'fool',
+        abilityType: 'thief',
         swapped: true,
-        newRole: randomRole
+        newRole: randomRole,
+        isTrueResult: false
       };
-    } else if (disguiseRole === 'police') {
+    } else if (disguiseRole === 'witch') {
       const randomPlayer = this.players[Math.floor(Math.random() * this.players.length)];
-      return {
-        type: 'police',
-        sealed: true,
-        targetId: randomPlayer.id
-      };
-    } else if (disguiseRole === 'gravekeeper') {
       const randomRole = allRoles[Math.floor(Math.random() * allRoles.length)];
       return {
-        type: 'gravekeeper',
-        viewed: true,
-        card: randomRole,
-        swapped: false
+        type: 'fool',
+        abilityType: 'witch',
+        playerName: randomPlayer.name,
+        role: randomRole,
+        isTrueResult: false
       };
     }
     
-    return { type: 'wait' };
+    return { 
+      type: 'fool',
+      abilityType: 'wait',
+      isTrueResult: false
+    };
   }
 
   processNightActions() {
@@ -268,10 +324,22 @@ class GameRoom {
             sealed: true,
             targetId: action.targetId
           });
+
+          const targetPlayer = this.players.find(p => p.id === action.targetId);
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'police',
+            description: `${targetPlayer ? targetPlayer.name : '不明'}の能力を封じました`
+          });
         } else {
           this.nightResults.set(player.id, {
             type: 'police',
             sealed: false
+          });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'police',
+            description: '今夜は能力を封じませんでした'
           });
         }
       }
@@ -284,136 +352,209 @@ class GameRoom {
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'werewolf',
+            description: '警察によって能力が封じられました'
+          });
         } else {
-          const werewolves = this.players.filter(p => p.role === 'werewolf');
+          const werewolves = this.players.filter(p => p.role === 'werewolf' && p.id !== player.id);
           
-          if (werewolves.length > 1) {
-            const teammates = werewolves
-              .filter(w => w.id !== player.id)
-              .map(w => ({ id: w.id, name: w.name }));
-            
+          if (werewolves.length > 0) {
             this.nightResults.set(player.id, {
               type: 'werewolf',
               subtype: 'multiple',
-              werewolves: teammates
+              werewolves: werewolves.map(w => ({ id: w.id, name: w.name }))
+            });
+            this.nightActionHistory.push({
+              playerName: player.name,
+              role: 'werewolf',
+              description: `仲間の人狼を確認: ${werewolves.map(w => w.name).join(', ')}`
             });
           } else {
             this.nightResults.set(player.id, {
               type: 'werewolf',
               subtype: 'alone'
             });
+            this.nightActionHistory.push({
+              playerName: player.name,
+              role: 'werewolf',
+              description: '仲間の人狼はいませんでした'
+            });
           }
         }
       }
     });
 
-    // 2. 審神者の処理
-    this.players.forEach(player => {
-      if (player.role === 'medium') {
-        if (player.id === this.sealedPlayerId) {
-          this.nightResults.set(player.id, {
-            type: 'sealed'
-          });
-        } else {
-          const action = this.nightActions.get(player.id);
-          
-          if (action && action.type === 'checkTeam' && action.targetId) {
-            const targetPlayer = this.players.find(p => p.id === action.targetId);
-            if (targetPlayer) {
-              const team = roleTeams[targetPlayer.role];
-              let teamName = '村人陣営';
-              if (team === 'werewolf') teamName = '人狼陣営';
-              if (team === 'hanged') teamName = '第三陣営';
-              
-              this.nightResults.set(player.id, {
-                type: 'medium',
-                playerName: targetPlayer.name,
-                team: teamName
-              });
-            }
-          }
-        }
-      }
-    });
-
-    // 3. 占い師の処理
+    // 2. 占い師の処理
     this.players.forEach(player => {
       if (player.role === 'fortune_teller') {
         if (player.id === this.sealedPlayerId) {
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'fortune_teller',
+            description: '警察によって能力が封じられました'
+          });
         } else {
           const action = this.nightActions.get(player.id);
           
           if (action && action.type === 'checkPlayer' && action.targetId) {
-            const targetPlayer = this.players.find(p => p.id === action.targetId);
-            if (targetPlayer) {
-              const displayRole = hideFool(targetPlayer.role);
-              
+            const target = this.players.find(p => p.id === action.targetId);
+            if (target) {
               this.nightResults.set(player.id, {
                 type: 'fortune_teller',
                 subtype: 'player',
-                playerName: targetPlayer.name,
-                role: displayRole
+                playerName: target.name,
+                role: hideFool(target.finalRole)
+              });
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'fortune_teller',
+                description: `${target.name}の役職を占いました: ${hideFool(target.finalRole)}`
               });
             }
           } else if (action && action.type === 'checkCenter') {
-            const cards = this.centerCards.map(card => {
-              if (card === 'madman' || card === 'fool') return 'villager';
-              return card;
-            });
-            
             this.nightResults.set(player.id, {
               type: 'fortune_teller',
               subtype: 'center',
-              cards: cards
+              cards: this.centerCards.map(c => hideFool(c))
+            });
+            this.nightActionHistory.push({
+              playerName: player.name,
+              role: 'fortune_teller',
+              description: `中央カード2枚を占いました`
+            });
+          } else {
+            this.nightResults.set(player.id, {
+              type: 'wait'
             });
           }
         }
       }
     });
 
-    // 4. ばかの処理
-    this.players.forEach(player => {
-      if (player.role === 'fool') {
-        if (player.id === this.sealedPlayerId) {
-          this.nightResults.set(player.id, {
-            type: 'sealed'
-          });
-        } else {
-          const foolInfo = this.generateFoolInfo(this.foolDisplayRole);
-          this.nightResults.set(player.id, foolInfo);
-        }
-      }
-    });
-
-    // 5. 怪盗の処理
+    // 3. 怪盗の処理
     this.players.forEach(player => {
       if (player.role === 'thief') {
         if (player.id === this.sealedPlayerId) {
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'thief',
+            description: '警察によって能力が封じられました'
+          });
         } else {
           const action = this.nightActions.get(player.id);
           
           if (action && action.type === 'swap' && action.targetId) {
-            this.swapRoles(player.id, action.targetId);
-            const newRole = this.getPlayerFinalRole(player.id);
-            const displayRole = hideFool(newRole);
-            
-            this.nightResults.set(player.id, {
-              type: 'thief',
-              swapped: true,
-              newRole: displayRole
-            });
+            const target = this.players.find(p => p.id === action.targetId);
+            if (target) {
+              const oldRole = player.finalRole;
+              this.swapRoles(player.id, action.targetId);
+              const newRole = player.finalRole;
+              
+              this.nightResults.set(player.id, {
+                type: 'thief',
+                swapped: true,
+                newRole: hideFool(newRole)
+              });
+
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'thief',
+                description: `${target.name}と役職を交換しました (${oldRole} → ${newRole})`
+              });
+            }
           } else {
             this.nightResults.set(player.id, {
               type: 'thief',
               swapped: false
             });
+            this.nightActionHistory.push({
+              playerName: player.name,
+              role: 'thief',
+              description: '今夜は交換しませんでした'
+            });
           }
+        }
+      }
+    });
+
+    // 4. 審神者の処理
+    this.players.forEach(player => {
+      if (player.role === 'medium') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'medium',
+            description: '警察によって能力が封じられました'
+          });
+        } else {
+          const action = this.nightActions.get(player.id);
+          
+          if (action && action.type === 'checkTeam' && action.targetId) {
+            const target = this.players.find(p => p.id === action.targetId);
+            if (target) {
+              const team = roleTeams[target.finalRole] === 'werewolf' ? '人狼陣営' : 
+                           roleTeams[target.finalRole] === 'hanged' ? '第三陣営' : '村人陣営';
+              
+              this.nightResults.set(player.id, {
+                type: 'medium',
+                playerName: target.name,
+                team: team
+              });
+
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'medium',
+                description: `${target.name}の陣営を調べました: ${team}`
+              });
+            }
+          } else {
+            this.nightResults.set(player.id, {
+              type: 'wait'
+            });
+          }
+        }
+      }
+    });
+
+    // 5. ばかの処理
+    this.players.forEach(player => {
+      if (player.role === 'fool') {
+        if (player.id === this.sealedPlayerId) {
+          this.nightResults.set(player.id, {
+            type: 'sealed'
+          });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'fool',
+            description: '警察によって能力が封じられました'
+          });
+        } else {
+          const foolInfo = this.generateFoolInfo(this.foolDisplayRole);
+          this.nightResults.set(player.id, foolInfo);
+          
+          // 行動履歴に追加
+          let description = `${this.foolDisplayRole}の能力を使用`;
+          if (foolInfo.isTrueResult) {
+            description += '（本物の結果！）';
+          } else {
+            description += '（嘘の結果）';
+          }
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'fool',
+            description: description
+          });
         }
       }
     });
@@ -425,36 +566,58 @@ class GameRoom {
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'gravekeeper',
+            description: '警察によって能力が封じられました'
+          });
         } else {
           const action = this.nightActions.get(player.id);
           
-          if (action && action.type === 'viewCenter' && action.centerIndex !== undefined) {
-            const card = this.centerCards[action.centerIndex];
-            const displayCard = hideFool(card);
+          if (action && action.centerIndex !== undefined) {
+            const centerCard = this.centerCards[action.centerIndex];
             
             if (action.shouldSwap) {
+              const oldRole = player.finalRole;
               this.swapWithCenter(player.id, action.centerIndex);
-              const newRole = this.getPlayerFinalRole(player.id);
+              const newRole = player.finalRole;
               
               this.nightResults.set(player.id, {
                 type: 'gravekeeper',
                 viewed: true,
-                card: displayCard,
+                card: hideFool(centerCard),
                 swapped: true,
                 newRole: hideFool(newRole)
+              });
+
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'gravekeeper',
+                description: `中央カードを確認して交換しました (${oldRole} → ${newRole})`
               });
             } else {
               this.nightResults.set(player.id, {
                 type: 'gravekeeper',
                 viewed: true,
-                card: displayCard,
+                card: hideFool(centerCard),
                 swapped: false
+              });
+
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'gravekeeper',
+                description: `中央カード(${hideFool(centerCard)})を確認しましたが交換しませんでした`
               });
             }
           } else {
             this.nightResults.set(player.id, {
               type: 'gravekeeper',
               viewed: false
+            });
+            this.nightActionHistory.push({
+              playerName: player.name,
+              role: 'gravekeeper',
+              description: '今夜は中央カードを見ませんでした'
             });
           }
         }
@@ -468,35 +631,52 @@ class GameRoom {
           this.nightResults.set(player.id, {
             type: 'sealed'
           });
+          this.nightActionHistory.push({
+            playerName: player.name,
+            role: 'witch',
+            description: '警察によって能力が封じられました'
+          });
         } else {
           const action = this.nightActions.get(player.id);
           
           if (action && action.type === 'checkOriginal' && action.targetId) {
-            const targetPlayer = this.players.find(p => p.id === action.targetId);
-            if (targetPlayer) {
-              const displayRole = hideFool(targetPlayer.role);
-              
+            const target = this.players.find(p => p.id === action.targetId);
+            if (target) {
               this.nightResults.set(player.id, {
                 type: 'witch',
-                playerName: targetPlayer.name,
-                role: displayRole
+                playerName: target.name,
+                role: hideFool(target.role)
+              });
+
+              this.nightActionHistory.push({
+                playerName: player.name,
+                role: 'witch',
+                description: `${target.name}の初期役職を調べました: ${hideFool(target.role)}`
               });
             }
+          } else {
+            this.nightResults.set(player.id, {
+              type: 'wait'
+            });
           }
         }
       }
     });
 
-    // 能力なし役職の処理
+    // 8. 能力のない役職（村人、狂人、吊人）
     this.players.forEach(player => {
-      if (player.role === 'villager' || player.role === 'madman' || player.role === 'hanged') {
+      if (['villager', 'madman', 'hanged'].includes(player.role)) {
         this.nightResults.set(player.id, {
           type: 'wait'
+        });
+        this.nightActionHistory.push({
+          playerName: player.name,
+          role: player.role,
+          description: '夜の能力はありません'
         });
       }
     });
 
-    console.log('夜行動の処理が完了しました');
     return this.nightResults;
   }
 
@@ -505,99 +685,84 @@ class GameRoom {
   }
 
   calculateResults() {
-    const voteCounts = {};
-    this.players.forEach(p => voteCounts[p.id] = 0);
-    voteCounts['peace'] = 0;
-    
+    const playerVoteCounts = {};
     const voteDetails = [];
+    
+    this.players.forEach(p => {
+      playerVoteCounts[p.id] = 0;
+    });
+
     for (let voterId in this.votes) {
       const targetId = this.votes[voterId];
+      const voter = this.players.find(p => p.id === voterId);
       
       if (targetId === 'peace') {
-        voteCounts['peace']++;
-      } else if (voteCounts[targetId] !== undefined) {
-        voteCounts[targetId]++;
-      }
-      
-      const voter = this.players.find(p => p.id === voterId);
-      const target = targetId === 'peace' ? null : this.players.find(p => p.id === targetId);
-      
-      if (voter) {
         voteDetails.push({
-          voterId: voterId,
-          voterName: voter.name,
-          targetId: targetId,
-          targetName: targetId === 'peace' ? '平和村' : (target ? target.name : '不明')
+          voterName: voter ? voter.name : '不明',
+          targetName: '平和村'
+        });
+      } else {
+        if (playerVoteCounts[targetId] !== undefined) {
+          playerVoteCounts[targetId]++;
+        }
+        
+        const target = this.players.find(p => p.id === targetId);
+        voteDetails.push({
+          voterName: voter ? voter.name : '不明',
+          targetName: target ? target.name : '不明'
         });
       }
     }
 
-    const hasWerewolf = this.players.some(p => p.finalRole === 'werewolf');
+    const allPeaceVotes = Object.values(this.votes).every(v => v === 'peace');
 
-    if (!hasWerewolf) {
-      const totalVotes = Object.keys(this.votes).length;
-      const peaceVotes = voteCounts['peace'];
+    if (allPeaceVotes) {
+      const hasWerewolf = this.players.some(p => p.finalRole === 'werewolf');
       
-      if (peaceVotes === totalVotes) {
+      if (!hasWerewolf) {
         return {
-          voteCounts,
+          voteCounts: playerVoteCounts,
           executed: [],
-          winners: this.players.filter(p => p.finalRole !== 'hanged'),
+          winners: this.players,
           resultType: 'peace',
           hasWerewolf: false,
           voteDetails
         };
       } else {
-        const playerVoteCounts = {};
-        this.players.forEach(p => playerVoteCounts[p.id] = 0);
-        
-        for (let voterId in this.votes) {
-          const targetId = this.votes[voterId];
-          if (targetId !== 'peace' && playerVoteCounts[targetId] !== undefined) {
-            playerVoteCounts[targetId]++;
-          }
-        }
-        
-        const maxVotes = Math.max(...Object.values(playerVoteCounts));
-        const executed = this.players.filter(p => 
-          playerVoteCounts[p.id] === maxVotes && maxVotes > 0
-        );
-        
         return {
-          voteCounts,
-          executed,
-          winners: executed,
-          resultType: 'peace_executed',
-          hasWerewolf: false,
+          voteCounts: playerVoteCounts,
+          executed: [],
+          winners: this.players.filter(p => roleTeams[p.finalRole] === 'werewolf'),
+          resultType: 'peace',
+          hasWerewolf: true,
           voteDetails
         };
       }
     }
 
-    const playerVoteCounts = {};
-    this.players.forEach(p => playerVoteCounts[p.id] = 0);
-    
-    for (let voterId in this.votes) {
-      const targetId = this.votes[voterId];
-      if (targetId !== 'peace' && playerVoteCounts[targetId] !== undefined) {
-        playerVoteCounts[targetId]++;
-      }
-    }
-
     const maxVotes = Math.max(...Object.values(playerVoteCounts));
-    const executed = this.players.filter(p => 
-      playerVoteCounts[p.id] === maxVotes && maxVotes > 0
-    );
+    const executed = this.players.filter(p => playerVoteCounts[p.id] === maxVotes);
 
-    const hangedExecuted = executed.some(p => p.finalRole === 'hanged');
+    const hangedExecuted = executed.find(p => p.finalRole === 'hanged');
     if (hangedExecuted) {
-      const hangedWinner = executed.find(p => p.finalRole === 'hanged');
       return {
         voteCounts: playerVoteCounts,
         executed,
-        winners: [hangedWinner],
+        winners: [hangedExecuted],
         resultType: 'hanged_win',
         hasWerewolf: true,
+        voteDetails
+      };
+    }
+
+    const hasWerewolf = this.players.some(p => p.finalRole === 'werewolf');
+    if (!hasWerewolf) {
+      return {
+        voteCounts: playerVoteCounts,
+        executed,
+        winners: executed,
+        resultType: 'peace_executed',
+        hasWerewolf: false,
         voteDetails
       };
     }
@@ -689,7 +854,8 @@ io.on('connection', (socket) => {
         role: player.displayRole,
         finalRole: player.displayRole,
         gameRoles: room.roles,
-        nightResult: room.nightResults.get(playerId) || null
+        nightResult: room.nightResults.get(playerId) || null,
+        discussionTime: room.discussionTime
       });
     } else {
       socket.emit('joinSuccess', {
@@ -708,16 +874,22 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('startGame', ({ roomId }) => {
+  socket.on('startGame', ({ roomId, discussionTime }) => {
     const room = rooms.get(roomId);
     if (room && room.host === socket.data.playerId) {
+      // 議論時間を保存
+      room.discussionTime = discussionTime || 300;
+      console.log(`議論時間: ${room.discussionTime}秒`);
+      
       room.startGame();
       
       room.players.forEach(player => {
         io.to(player.socketId).emit('gameStarted', {
           role: player.displayRole,
           gameState: room.gameState,
-          roles: room.roles
+          roles: room.roles,
+          discussionTime: room.discussionTime,
+          isFoolTrue: room.isFoolTrue
         });
       });
 
@@ -736,20 +908,17 @@ io.on('connection', (socket) => {
         const currentPhase = room.gravekeeperPhase.get(playerId);
         
         if (!currentPhase || currentPhase === 'selecting') {
-          // 墓守の1回目: カード選択
           room.recordNightAction(playerId, action);
           room.markPlayerCompleted(playerId);
           room.gravekeeperPhase.set(playerId, 'selecting');
           console.log(`墓守 ${playerId} がカードを選択しました（フェーズ: selecting）`);
         } else if (currentPhase === 'confirming') {
-          // 墓守の2回目: 交換の確定
           room.recordNightAction(playerId, action);
           room.gravekeeperPhase.set(playerId, 'completed');
           room.markPlayerCompleted(playerId);
           console.log(`墓守 ${playerId} が交換を選択しました（フェーズ: completed）`);
         }
       } else {
-        // 他の役職は通常通り
         room.recordNightAction(playerId, action);
         room.markPlayerCompleted(playerId);
       }
@@ -759,7 +928,6 @@ io.on('connection', (socket) => {
         
         const results = room.processNightActions();
         
-        // 墓守の処理
         const gravekeepers = room.players.filter(p => p.role === 'gravekeeper' && room.gravekeeperPhase.get(p.id) === 'selecting');
         
         if (gravekeepers.length > 0) {
@@ -770,37 +938,29 @@ io.on('connection', (socket) => {
             const action = room.nightActions.get(gk.id);
             
             if (result.type === 'sealed') {
-              // 警察に封じられている場合
               io.to(gk.socketId).emit('gravekeeperViewResult', {
                 type: 'sealed'
               });
-              // 封じられた場合は即完了
               room.gravekeeperPhase.set(gk.id, 'completed');
             } else if (result.viewed && action.centerIndex !== undefined) {
-              // カード情報を送信
               io.to(gk.socketId).emit('gravekeeperViewResult', {
                 type: 'success',
                 card: result.card,
                 centerIndex: action.centerIndex
               });
-              // 確認フェーズに移行
               room.gravekeeperPhase.set(gk.id, 'confirming');
-              // 完了フラグを一旦外す
               room.nightActionsCompleted.delete(gk.id);
             } else {
-              // 見ないを選択した場合
               room.gravekeeperPhase.set(gk.id, 'completed');
             }
           });
           
-          // 墓守がまだ確認中なら、ここで終了
           if (!room.isAllPlayersCompleted()) {
             console.log('墓守の確認待ち...');
             return;
           }
         }
         
-        // 通常の結果送信
         room.players.forEach(player => {
           const result = results.get(player.id);
           if (result && player.role !== 'gravekeeper') {
@@ -815,7 +975,9 @@ io.on('connection', (socket) => {
           room.players.forEach(player => {
             io.to(player.socketId).emit('discussionStarted', {
               finalRole: player.displayRole,
-              roles: room.roles
+              roles: room.roles,
+              discussionTime: room.discussionTime,
+              isFoolTrue: room.isFoolTrue
             });
           });
           
@@ -854,7 +1016,8 @@ io.on('connection', (socket) => {
             name: p.name,
             initialRole: p.role,
             finalRole: p.finalRole
-          }))
+          })),
+          nightActions: room.nightActionHistory
         });
       }
     }
@@ -871,7 +1034,9 @@ io.on('connection', (socket) => {
         io.to(player.socketId).emit('gameStarted', {
           role: player.displayRole,
           gameState: room.gameState,
-          roles: room.roles
+          roles: room.roles,
+          discussionTime: room.discussionTime,
+          isFoolTrue: room.isFoolTrue
         });
       });
 

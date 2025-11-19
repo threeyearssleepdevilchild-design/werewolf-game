@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import socket from '../socket';
-import './DiscussionPhase.css'; // 新しいCSS
+import RoleModal from './RoleModal';
 
 const roleInfo = {
   werewolf: { name: '人狼', team: '人狼陣営', color: 'werewolf' },
@@ -16,59 +16,38 @@ const roleInfo = {
   hanged: { name: '吊人', team: '第三陣営', color: 'hanged' }
 };
 
-function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, gameRoles }) {
+function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, gameRoles, discussionTime }) {
   const role = roleInfo[myFinalRole];
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [hasVoted, setHasVoted] = useState(false);
-  
-  // 議論メモ機能
-  const [memos, setMemos] = useState({});
-  const [memoInput, setMemoInput] = useState('');
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(discussionTime || 300); // デフォルト5分
+  const [selectedRoleForModal, setSelectedRoleForModal] = useState(null);
 
   const otherPlayers = players.filter(p => p.id !== playerId);
 
-  // ローカルストレージからメモを読み込み
+  // タイマー機能
   useEffect(() => {
-    const savedMemos = localStorage.getItem(`werewolf_memos_${roomId}`);
-    if (savedMemos) {
-      try {
-        setMemos(JSON.parse(savedMemos));
-      } catch (e) {
-        console.error('メモの読み込みエラー:', e);
-      }
-    }
-  }, [roomId]);
+    if (timeLeft <= 0) return;
 
-  // メモを保存
-  const saveMemo = (playerIdToSave, memo) => {
-    const newMemos = {
-      ...memos,
-      [playerIdToSave]: memo
-    };
-    setMemos(newMemos);
-    localStorage.setItem(`werewolf_memos_${roomId}`, JSON.stringify(newMemos));
+    const timer = setInterval(() => {
+      setTimeLeft(prev => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  // 時間をフォーマット (MM:SS)
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // メモを追加
-  const addMemo = () => {
-    if (!selectedPlayer || !memoInput.trim()) return;
-    
-    const existingMemo = memos[selectedPlayer] || '';
-    const newMemo = existingMemo 
-      ? `${existingMemo}\n${memoInput.trim()}`
-      : memoInput.trim();
-    
-    saveMemo(selectedPlayer, newMemo);
-    setMemoInput('');
-  };
-
-  // メモをクリア
-  const clearMemo = (playerIdToClear) => {
-    const newMemos = { ...memos };
-    delete newMemos[playerIdToClear];
-    setMemos(newMemos);
-    localStorage.setItem(`werewolf_memos_${roomId}`, JSON.stringify(newMemos));
+  // タイマーの色を決定
+  const getTimerColor = () => {
+    if (timeLeft > 60) return 'timer-green';
+    if (timeLeft > 30) return 'timer-yellow';
+    return 'timer-red';
   };
 
   const getWinCondition = () => {
@@ -100,10 +79,14 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, 
     const rolesList = [];
     for (let role in gameRoles) {
       if (gameRoles[role] > 0) {
-        rolesList.push(`${roleInfo[role].name}×${gameRoles[role]}`);
+        rolesList.push({ 
+          role, 
+          name: roleInfo[role].name, 
+          count: gameRoles[role] 
+        });
       }
     }
-    return rolesList.join(', ');
+    return rolesList;
   };
 
   // 夜の結果を表示
@@ -228,6 +211,44 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, 
       );
     }
 
+    if (nightResult.type === 'fool') {
+      // ばかの結果表示
+      const isTrueResult = nightResult.isTrueResult;
+      return (
+        <div className={isTrueResult ? 'success-box' : 'info-box'}>
+          <strong>【ばかの結果】</strong><br />
+          {nightResult.abilityType === 'fortune_teller' && (
+            <>
+              占い結果: {nightResult.playerName}は {roleInfo[nightResult.role].name}
+              {isTrueResult && ' ✨(本物!)'}
+            </>
+          )}
+          {nightResult.abilityType === 'thief' && (
+            <>
+              {nightResult.swapped ? (
+                <>
+                  カードを交換しました!<br />
+                  新しい役職: {roleInfo[nightResult.newRole].name}
+                  {isTrueResult && ' ✨(本物!)'}
+                </>
+              ) : (
+                <>
+                  今夜は交換しませんでした
+                  {isTrueResult && ' ✨(本物!)'}
+                </>
+              )}
+            </>
+          )}
+          {nightResult.abilityType === 'medium' && (
+            <>
+              {nightResult.playerName}の陣営: {nightResult.team}
+              {isTrueResult && ' ✨(本物!)'}
+            </>
+          )}
+        </div>
+      );
+    }
+
     if (nightResult.type === 'wait') {
       return (
         <div className="info-box">
@@ -240,169 +261,107 @@ function DiscussionPhase({ playerId, roomId, players, myFinalRole, nightResult, 
     return null;
   };
 
+  const rolesList = getRolesList();
+
   return (
-    <div className="discussion-wrapper">
-      {/* メインコンテンツ */}
-      <div className="discussion-main">
-        <div className="container">
-          <h1>🌅 昼フェーズ</h1>
-          <h2>議論時間</h2>
+    <div className="container">
+      <h1>🌅 昼フェーズ</h1>
+      <h2>議論時間</h2>
 
-          <div className="success-box">
-            <strong>朝になりました!</strong><br />
-            議論して人狼を見つけましょう!
-          </div>
-
-          {/* 夜の結果を表示 */}
-          {renderNightResult()}
-
-          {/* 役職一覧を表示 */}
-          {gameRoles && (
-            <div className="info-box" style={{ backgroundColor: '#f0f0f0', borderLeft: '4px solid #666' }}>
-              <strong>使用中の役職:</strong><br />
-              {getRolesList()}
-            </div>
-          )}
-
-          <div className={`card ${role.color}`}>{role.name}</div>
-
-          <div className="info-box">
-            <strong>あなたの役職:</strong> {role.name}<br />
-            <strong>陣営:</strong> {role.team}<br />
-            <strong>勝利条件:</strong> {getWinCondition()}
-          </div>
-
-          {/* 投票 */}
-          <h2>🗳️ 投票</h2>
-
-          {!hasVoted ? (
-            <>
-              <div className="info-box">
-                処刑したいプレイヤーを1人選んでください<br />
-                ※自分には投票できません
-              </div>
-
-              <div className="vote-grid">
-                {otherPlayers.map((player) => (
-                  <button
-                    key={player.id}
-                    onClick={() => setSelectedTarget(player.id)}
-                    className={selectedTarget === player.id ? 'selected' : ''}
-                  >
-                    {player.name}
-                    {memos[player.id] && (
-                      <span className="memo-badge">📝</span>
-                    )}
-                  </button>
-                ))}
-                {/* 平和村ボタン (常に表示) */}
-                <button
-                  onClick={() => setSelectedTarget('peace')}
-                  className={selectedTarget === 'peace' ? 'selected' : ''}
-                  style={{
-                    backgroundColor: selectedTarget === 'peace' ? '#4CAF50' : '#8BC34A',
-                    color: 'white'
-                  }}
-                >
-                  🕊️ 平和村
-                </button>
-              </div>
-
-              <button onClick={handleVote} disabled={!selectedTarget}>
-                投票する
-              </button>
-            </>
-          ) : (
-            <div className="success-box">
-              投票が完了しました!<br />
-              全員の投票が終わるまでお待ちください...
-            </div>
-          )}
-        </div>
+      {/* タイマー表示 */}
+      <div className={`timer-display ${getTimerColor()}`}>
+        <span className="timer-icon">⏱️</span>
+        <span className="timer-text">{formatTime(timeLeft)}</span>
       </div>
 
-      {/* 議論メモサイドバー */}
-      <div className="memo-sidebar">
-        <div className="memo-container">
-          <h3 className="memo-title">📝 議論メモ</h3>
-          
-          <div className="memo-help">
-            プレイヤーを選んでメモを残そう
-          </div>
+      <div className="success-box">
+        <strong>朝になりました!</strong><br />
+        議論して人狼を見つけましょう!
+      </div>
 
-          {/* プレイヤー選択 */}
-          <div className="memo-player-select">
-            {otherPlayers.map((player) => (
+      {/* 夜の結果を表示 */}
+      {renderNightResult()}
+
+      {/* 役職一覧を表示（クリックで詳細） */}
+      {rolesList && (
+        <div className="roles-list-box">
+          <strong>🎴 使用中の役職:</strong>
+          <div className="roles-chips">
+            {rolesList.map(({ role, name, count }) => (
               <button
-                key={player.id}
-                onClick={() => setSelectedPlayer(player.id)}
-                className={`memo-player-btn ${selectedPlayer === player.id ? 'active' : ''} ${memos[player.id] ? 'has-memo' : ''}`}
+                key={role}
+                className="role-chip"
+                onClick={() => setSelectedRoleForModal(role)}
+                title="クリックで詳細を表示"
               >
-                {player.name}
-                {memos[player.id] && <span className="memo-indicator">●</span>}
+                {name}×{count}
               </button>
             ))}
           </div>
-
-          {/* 選択中のプレイヤーのメモ */}
-          {selectedPlayer && (
-            <div className="memo-edit-area">
-              <div className="memo-edit-header">
-                <strong>
-                  {otherPlayers.find(p => p.id === selectedPlayer)?.name}のメモ
-                </strong>
-                {memos[selectedPlayer] && (
-                  <button
-                    onClick={() => clearMemo(selectedPlayer)}
-                    className="memo-clear-btn"
-                    title="メモをクリア"
-                  >
-                    🗑️
-                  </button>
-                )}
-              </div>
-
-              {/* 既存のメモ表示 */}
-              {memos[selectedPlayer] && (
-                <div className="memo-display">
-                  {memos[selectedPlayer].split('\n').map((line, i) => (
-                    <div key={i} className="memo-line">• {line}</div>
-                  ))}
-                </div>
-              )}
-
-              {/* メモ入力 */}
-              <div className="memo-input-area">
-                <input
-                  type="text"
-                  value={memoInput}
-                  onChange={(e) => setMemoInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      addMemo();
-                    }
-                  }}
-                  placeholder="メモを入力..."
-                  maxLength={50}
-                />
-                <button
-                  onClick={addMemo}
-                  disabled={!memoInput.trim()}
-                  className="memo-add-btn"
-                >
-                  追加
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!selectedPlayer && (
-            <div className="memo-empty">
-              👆 プレイヤーを選択してください
-            </div>
-          )}
         </div>
+      )}
+
+      <div className={`card ${role.color}`} onClick={() => setSelectedRoleForModal(myFinalRole)}>
+        {role.name}
       </div>
+
+      <div className="info-box">
+        <strong>あなたの役職:</strong> {role.name}<br />
+        <strong>陣営:</strong> {role.team}<br />
+        <strong>勝利条件:</strong> {getWinCondition()}
+      </div>
+
+      {/* 投票 */}
+      <h2>🗳️ 投票</h2>
+
+      {!hasVoted ? (
+        <>
+          <div className="info-box">
+            処刑したいプレイヤーを1人選んでください<br />
+            ※自分には投票できません
+          </div>
+
+          <div className="vote-grid">
+            {otherPlayers.map((player) => (
+              <button
+                key={player.id}
+                onClick={() => setSelectedTarget(player.id)}
+                className={selectedTarget === player.id ? 'selected' : ''}
+              >
+                {player.name}
+              </button>
+            ))}
+            {/* 平和村ボタン (常に表示) */}
+            <button
+              onClick={() => setSelectedTarget('peace')}
+              className={selectedTarget === 'peace' ? 'selected' : ''}
+              style={{
+                backgroundColor: selectedTarget === 'peace' ? '#4CAF50' : '#8BC34A',
+                color: 'white'
+              }}
+            >
+              🕊️ 平和村
+            </button>
+          </div>
+
+          <button onClick={handleVote} disabled={!selectedTarget}>
+            投票する
+          </button>
+        </>
+      ) : (
+        <div className="success-box">
+          投票が完了しました!<br />
+          全員の投票が終わるまでお待ちください...
+        </div>
+      )}
+
+      {/* 役職説明モーダル */}
+      {selectedRoleForModal && (
+        <RoleModal
+          role={selectedRoleForModal}
+          onClose={() => setSelectedRoleForModal(null)}
+        />
+      )}
     </div>
   );
 }

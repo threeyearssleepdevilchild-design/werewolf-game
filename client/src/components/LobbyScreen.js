@@ -1,6 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 function LobbyScreen({ roomData, isHost, onShowRoleConfig }) {
+  const [discussionTime, setDiscussionTime] = useState(300); // デフォルト5分
+
+  const timeOptions = [
+    { label: '3分', value: 180 },
+    { label: '5分', value: 300 },
+    { label: '8分', value: 480 },
+    { label: '10分', value: 600 },
+    { label: '15分', value: 900 },
+    { label: '無制限', value: 999999 }
+  ];
+
+  const handleStartGame = () => {
+    onShowRoleConfig(discussionTime);
+  };
+
   return (
     <div className="container">
       <h1>🌙 ワンナイト人狼オリジナル版</h1>
@@ -25,7 +40,24 @@ function LobbyScreen({ roomData, isHost, onShowRoleConfig }) {
 
       {isHost ? (
         <>
-          <button onClick={onShowRoleConfig}>役職を設定する</button>
+          {/* タイマー設定 */}
+          <div className="timer-config">
+            <h3>⏱️ 議論時間の設定</h3>
+            <div className="timer-options">
+              {timeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setDiscussionTime(option.value)}
+                  className={`timer-option-btn ${discussionTime === option.value ? 'selected' : ''}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={handleStartGame}>役職を設定する</button>
+          
           <div className="info-box">
             <strong>ℹ️ ホストの権限</strong><br />
             役職を設定してゲームを開始できます

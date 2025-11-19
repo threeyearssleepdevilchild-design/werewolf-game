@@ -1,0 +1,188 @@
+/* ==========================================
+   RoleModal.css - 役職説明モーダルスタイル
+   ========================================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-lg);
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--light-secondary);
+  border-radius: var(--radius-xl);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  animation: scaleUp 0.3s ease;
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  color: var(--dark-primary);
+  border: none;
+  font-size: var(--text-2xl);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: var(--error);
+  color: var(--light-secondary);
+  transform: rotate(90deg);
+}
+
+.modal-header {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--dark-primary) 100%);
+  color: var(--light-secondary);
+  padding: var(--space-xl);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.modal-header h2 {
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--light-secondary);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+}
+
+.modal-team {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: var(--space-xl);
+}
+
+.modal-description {
+  font-size: var(--text-lg);
+  color: var(--gray-700);
+  margin-bottom: var(--space-xl);
+  line-height: 1.8;
+}
+
+.modal-section {
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg);
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--accent);
+}
+
+.modal-section h3 {
+  color: var(--dark-primary);
+  font-size: var(--text-xl);
+  margin: 0 0 var(--space-md) 0;
+  font-weight: 700;
+}
+
+.modal-section p {
+  color: var(--gray-700);
+  font-size: var(--text-base);
+  line-height: 1.8;
+  margin: 0;
+}
+
+.modal-tips {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-left-color: var(--warning);
+}
+
+/* スマホ対応 */
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: var(--space-sm);
+  }
+
+  .modal-content {
+    max-height: 95vh;
+  }
+
+  .modal-close {
+    width: 36px;
+    height: 36px;
+    font-size: var(--text-xl);
+    top: var(--space-sm);
+    right: var(--space-sm);
+  }
+
+  .modal-header {
+    padding: var(--space-lg);
+  }
+
+  .modal-header h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .modal-team {
+    font-size: var(--text-xs);
+  }
+
+  .modal-body {
+    padding: var(--space-lg);
+  }
+
+  .modal-description {
+    font-size: var(--text-base);
+  }
+
+  .modal-section {
+    padding: var(--space-md);
+  }
+
+  .modal-section h3 {
+    font-size: var(--text-lg);
+  }
+
+  .modal-section p {
+    font-size: var(--text-sm);
+  }
+}
+
+/* スクロールバーのカスタマイズ */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: var(--gray-100);
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: var(--dark-primary);
+}
