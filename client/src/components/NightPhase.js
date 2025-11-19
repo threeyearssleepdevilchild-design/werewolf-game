@@ -9,7 +9,7 @@ const roleInfo = {
   police: { name: '警察', team: '村人陣営', color: 'police', description: 'プレイヤー1人の能力を封じる' },
   madman: { name: '狂人', team: '人狼陣営', color: 'madman', description: '人狼陣営だが人狼を知らない' },
   medium: { name: '審神者', team: '村人陣営', color: 'medium', description: 'プレイヤー1人の陣営を調査' },
-  fool: { name: 'ばか', team: '村人陣営', color: 'fool', description: 'ランダムな役職を演じ偽情報を得る' },
+  // fool は削除（フェイク役職として他の役職を演じるため）
   gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper', description: '中央カード1枚を見て交換可能' },
   witch: { name: '魔女っ子', team: '村人陣営', color: 'witch', description: 'プレイヤー1人の初期役職を調査' },
   hanged: { name: '吊人', team: '第三陣営', color: 'hanged', description: '処刑されたら勝利' }
@@ -21,6 +21,19 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
   const [waitingInfo, setWaitingInfo] = useState(null);
 
   const role = roleInfo[myRole];
+
+  // 万が一 roleInfo に定義がない場合のフォールバック
+  if (!role) {
+    console.error(`Unknown role: ${myRole}`);
+    return (
+      <div className="container">
+        <h1>🌙 夜フェーズ</h1>
+        <div className="error-box">
+          エラー: 不明な役職です
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     socket.on('nightResult', (result) => {
@@ -59,9 +72,10 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
     if (!gameRoles) return null;
     
     const rolesList = [];
-    for (let role in gameRoles) {
-      if (gameRoles[role] > 0) {
-        rolesList.push(`${roleInfo[role].name}×${gameRoles[role]}`);
+    for (let roleName in gameRoles) {
+      if (gameRoles[roleName] > 0) {
+        const roleDisplayName = roleInfo[roleName]?.name || roleName;
+        rolesList.push(`${roleDisplayName}×${gameRoles[roleName]}`);
       }
     }
     return rolesList.join(', ');
@@ -300,14 +314,33 @@ function FortuneTellerAction({ roomId, playerId, roomData }) {
 
   return (
     <div>
-      <div className="info-box">
-        プレイヤー1人を調べるか、中央カード2枚を見るか選んでください。
-      </div>
-
       {!choice && (
-        <div className="action-buttons">
-          <button onClick={() => setChoice('player')}>プレイヤーを調べる</button>
-          <button onClick={checkCenter}>中央カードを見る</button>
+        <div>
+          <div className="info-box">
+            以下から選択してください:
+          </div>
+          <div className="action-buttons">
+            <button onClick={() => setChoice('player')}>
+              プレイヤー1人を見る
+            </button>
+            <button onClick={() => setChoice('center')}>
+              中央カード2枚を見る
+            </button>
+          </div>
+        </div>
+      )}
+
+      {choice === 'center' && (
+        <div>
+          <div className="info-box">
+            中央カード2枚を確認しますか?
+          </div>
+          <button onClick={checkCenter}>
+            確認する
+          </button>
+          <button onClick={() => setChoice(null)} className="secondary">
+            戻る
+          </button>
         </div>
       )}
 
@@ -402,6 +435,19 @@ function GravekeeperAction({ roomId, playerId }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [viewedCard, setViewedCard] = useState(null);
 
+  const roleInfo = {
+    werewolf: { name: '人狼', color: 'werewolf' },
+    villager: { name: '村人', color: 'villager' },
+    fortune_teller: { name: '占い師', color: 'detective' },
+    thief: { name: '怪盗', color: 'thief' },
+    police: { name: '警察', color: 'police' },
+    madman: { name: '狂人', color: 'madman' },
+    medium: { name: '審神者', color: 'medium' },
+    gravekeeper: { name: '墓守', color: 'gravekeeper' },
+    witch: { name: '魔女っ子', color: 'witch' },
+    hanged: { name: '吊人', color: 'hanged' }
+  };
+
   useEffect(() => {
     // 墓守専用の結果を受信
     socket.on('gravekeeperViewResult', (result) => {
@@ -425,11 +471,11 @@ function GravekeeperAction({ roomId, playerId }) {
     setSelectedIndex(index);
     setPhase('loading');
     
-    // サーバーに「見る」リクエスト（完了扱いにしない）
-    socket.emit('gravekeeperView', {
+    // サーバーに「見る」リクエスト
+    socket.emit('submitNightAction', {
       roomId,
       playerId,
-      centerIndex: index
+      action: { type: 'viewCenter', centerIndex: index }
     });
   };
 
