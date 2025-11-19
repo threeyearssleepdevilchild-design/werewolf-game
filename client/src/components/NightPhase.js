@@ -20,21 +20,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
   const [actionResult, setActionResult] = useState(null);
   const [waitingInfo, setWaitingInfo] = useState(null);
 
-  const role = roleInfo[myRole];
-
-  // 万が一 roleInfo に定義がない場合のフォールバック
-  if (!role) {
-    console.error(`Unknown role: ${myRole}`);
-    return (
-      <div className="container">
-        <h1>🌙 夜フェーズ</h1>
-        <div className="error-box">
-          エラー: 不明な役職です
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ useEffectを最初に移動（フックのルールに従う）
   useEffect(() => {
     socket.on('nightResult', (result) => {
       console.log('夜行動の結果を受信:', result);
@@ -53,6 +39,22 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
       socket.off('waitingForOthers');
     };
   }, []);
+
+  const role = roleInfo[myRole];
+
+  // 万が一 roleInfo に定義がない場合のフォールバック
+  // ✅ useEffectの後なので早期リターンしてもOK
+  if (!role) {
+    console.error(`Unknown role: ${myRole}`);
+    return (
+      <div className="container">
+        <h1>🌙 夜フェーズ</h1>
+        <div className="error-box">
+          エラー: 不明な役職です
+        </div>
+      </div>
+    );
+  }
 
   const startAction = () => {
     if (myRole === 'villager' || myRole === 'madman' || myRole === 'hanged') {
@@ -300,7 +302,7 @@ function FortuneTellerAction({ roomId, playerId, roomData }) {
     socket.emit('submitNightAction', {
       roomId,
       playerId,
-      action: { type: 'checkPlayer', targetId: selectedTarget }
+      action: { type: 'check', targetType: 'player', targetId: selectedTarget }
     });
   };
 
@@ -308,7 +310,7 @@ function FortuneTellerAction({ roomId, playerId, roomData }) {
     socket.emit('submitNightAction', {
       roomId,
       playerId,
-      action: { type: 'checkCenter' }
+      action: { type: 'check', targetType: 'center' }
     });
   };
 
@@ -317,26 +319,24 @@ function FortuneTellerAction({ roomId, playerId, roomData }) {
       {!choice && (
         <div>
           <div className="info-box">
-            以下から選択してください:
+            占いの対象を選んでください
           </div>
-          <div className="action-buttons">
-            <button onClick={() => setChoice('player')}>
-              プレイヤー1人を見る
-            </button>
-            <button onClick={() => setChoice('center')}>
-              中央カード2枚を見る
-            </button>
-          </div>
+          <button onClick={() => setChoice('player')}>
+            プレイヤー1人を占う
+          </button>
+          <button onClick={() => setChoice('center')}>
+            中央カード2枚を占う
+          </button>
         </div>
       )}
 
       {choice === 'center' && (
         <div>
           <div className="info-box">
-            中央カード2枚を確認しますか?
+            中央カード2枚を確認します
           </div>
           <button onClick={checkCenter}>
-            確認する
+            中央カードを見る
           </button>
           <button onClick={() => setChoice(null)} className="secondary">
             戻る
@@ -346,14 +346,21 @@ function FortuneTellerAction({ roomId, playerId, roomData }) {
 
       {choice === 'player' && (
         <div>
-          <h3>調べるプレイヤーを選択:</h3>
+          <div className="info-box">
+            プレイヤー1人を選んで占ってください
+          </div>
           <div className="player-list">
             {otherPlayers.map((player) => (
               <div 
                 key={player.id} 
                 className={`player-item ${selectedTarget === player.id ? 'selected' : ''}`}
                 onClick={() => setSelectedTarget(player.id)}
-                style={{ cursor: 'pointer', padding: '10px', margin: '5px', border: selectedTarget === player.id ? '2px solid blue' : '1px solid gray' }}
+                style={{ 
+                  cursor: 'pointer', 
+                  padding: '10px', 
+                  margin: '5px', 
+                  border: selectedTarget === player.id ? '2px solid blue' : '1px solid gray' 
+                }}
               >
                 {player.name}
               </div>
