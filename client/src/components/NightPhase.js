@@ -9,7 +9,7 @@ const roleInfo = {
   police: { name: '警察', team: '村人陣営', color: 'police', description: 'プレイヤー1人の能力を封じる' },
   madman: { name: '狂人', team: '人狼陣営', color: 'madman', description: '人狼陣営だが人狼を知らない' },
   medium: { name: '審神者', team: '村人陣営', color: 'medium', description: 'プレイヤー1人の陣営を調査' },
-  // fool は削除（フェイク役職として他の役職を演じるため）
+  fool: { name: 'ばか', team: '村人陣営', color: 'villager', description: '他の役職を演じる（本人は気づかない）' },
   gravekeeper: { name: '墓守', team: '村人陣営', color: 'gravekeeper', description: '中央カード1枚を見て交換可能' },
   witch: { name: '魔女っ子', team: '村人陣営', color: 'witch', description: 'プレイヤー1人の初期役職を調査' },
   hanged: { name: '吊人', team: '第三陣営', color: 'hanged', description: '処刑されたら勝利' }
@@ -57,7 +57,7 @@ function NightPhase({ playerId, roomId, myRole, roomData, gameRoles, onComplete 
   }
 
   const startAction = () => {
-    if (myRole === 'villager' || myRole === 'madman' || myRole === 'hanged') {
+    if (myRole === 'villager' || myRole === 'madman' || myRole === 'hanged' || myRole === 'fool') {
       socket.emit('submitNightAction', {
         roomId,
         playerId,
