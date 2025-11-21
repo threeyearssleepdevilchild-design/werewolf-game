@@ -127,10 +127,24 @@ class GameRoom {
 
     this.centerCards = deck.slice(this.players.length, this.players.length + 2);
 
+    // ✅ ばかの処理を修正
     const foolPlayer = this.players.find(p => p.role === 'fool');
     if (foolPlayer) {
+      // 実際にゲームで使用されている村人陣営の役職を抽出
       const villagerRoles = ['fortune_teller', 'thief', 'police', 'gravekeeper', 'witch', 'medium'];
-      this.foolDisplayRole = villagerRoles[Math.floor(Math.random() * villagerRoles.length)];
+      const availableRoles = villagerRoles.filter(role => {
+        // このロールがゲームで使われているかチェック
+        return this.roles[role] && this.roles[role] > 0;
+      });
+
+      // 使用可能な役職がある場合はその中から選択、なければ村人
+      if (availableRoles.length > 0) {
+        this.foolDisplayRole = availableRoles[Math.floor(Math.random() * availableRoles.length)];
+      } else {
+        // 村人陣営の特殊役職が1つもない場合は村人として表示
+        this.foolDisplayRole = 'villager';
+      }
+      
       foolPlayer.displayRole = this.foolDisplayRole;
       
       // 1/10の確率で本物
