@@ -737,4 +737,119 @@ button.success:hover:not(:disabled) {
     padding: var(--space-sm);
     font-size: var(--text-sm);
   }
+}/* ==========================================
+   ダークモード対応の追加スタイル
+   ========================================== */
+
+/* ダークモード時の情報ボックスのテキスト色 */
+[data-theme="dark"] .info-box,
+[data-theme="dark"] .roles-list-box {
+  background: var(--dark-secondary);
+  border-color: var(--accent);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .info-box strong,
+[data-theme="dark"] .roles-list-box strong {
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時の役職カードのテキスト */
+[data-theme="dark"] .card {
+  color: var(--light-secondary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時の背景が明るい役職は文字を暗く */
+[data-theme="dark"] .card.madman,
+[data-theme="dark"] .card.fool {
+  color: var(--dark-primary); /* ✅ 暗い文字色（背景が明るいため） */
+}
+
+/* ダークモード時の見出し */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2 {
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] h3 {
+  color: var(--light-secondary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時のプレイヤーアイテム */
+[data-theme="dark"] .player-item {
+  background: var(--dark-secondary);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時の役職設定 */
+[data-theme="dark"] .role-config {
+  background: var(--dark-secondary);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .role-name {
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時の警告ボックス */
+[data-theme="dark"] .warning-box {
+  background: rgba(255, 152, 0, 0.2);
+  border-color: var(--warning);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .error-box {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: var(--error);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .success-box {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: var(--success);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時のテーブル */
+[data-theme="dark"] .result-table th {
+  background: var(--dark-secondary);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .result-table td {
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+/* ダークモード時のタイマー設定 */
+[data-theme="dark"] .timer-config {
+  background: var(--dark-secondary);
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .timer-config h3 {
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+}
+
+[data-theme="dark"] .timer-option-btn {
+  background: var(--dark-primary);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+  border-color: var(--gray-600);
+}
+
+[data-theme="dark"] .timer-option-btn:hover:not(.selected) {
+  background: var(--dark-secondary);
+  border-color: var(--accent);
+}
+
+/* ダークモード時の入力フォーム */
+[data-theme="dark"] input,
+[data-theme="dark"] select {
+  background: var(--dark-secondary);
+  color: var(--light-primary); /* ✅ 明るい文字色 */
+  border-color: var(--gray-600);
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--accent);
 }
